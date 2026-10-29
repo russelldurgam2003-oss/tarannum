@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:audioplayers/audioplayers.dart';
 import '../models/verse.dart';
 import '../services/verse_service.dart';
+import '../widgets/parchment_dialog.dart';
 
 class GameScreen extends StatefulWidget {
   const GameScreen({super.key});
@@ -13,6 +15,7 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> {
   final VerseService _verseService = VerseService();
+  final AudioPlayer _sfxPlayer = AudioPlayer();
 
   List<Verse?> _playerCards = List<Verse?>.filled(25, null);
   List<Verse?> _aiCards = List<Verse?>.filled(25, null);
@@ -25,7 +28,6 @@ class _GameScreenState extends State<GameScreen> {
   bool _isLoading = true;
   bool _isAnswered = false;
 
-  // إدارة الأخطاء والعقوبة
   int _wrongAttempts = 0;
   final Set<int> _wrongTappedIds = {};
   int _freezeCycleCount = 0;
@@ -45,8 +47,6 @@ class _GameScreenState extends State<GameScreen> {
 
   bool _hasSetInitialZoom = false;
   Size _lastViewportSize = Size.zero;
-
-  // تتبع الحجم الحالي وحجم "الملء للشاشة"
   double _currentScale = 1.0;
   double _fitScale = 1.0;
 
@@ -56,8 +56,8 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void initState() {
     super.initState();
-    // نستمع لتغيّر الحجم لتحديث حالة التحريك
     _transformController.addListener(_onTransformChanged);
+    _sfxPlayer.setPlayerMode(PlayerMode.lowLatency);
     _loadVerses();
   }
 
@@ -65,6 +65,15 @@ class _GameScreenState extends State<GameScreen> {
     final newScale = _transformController.value.getMaxScaleOnAxis();
     if ((newScale - _currentScale).abs() > 0.01) {
       setState(() => _currentScale = newScale);
+    }
+  }
+
+  void _playSound(String assetPath) async {
+    try {
+      await _sfxPlayer.stop();
+      await _sfxPlayer.play(AssetSource(assetPath));
+    } catch (e) {
+      print('خطأ في تشغيل الصوت: $e');
     }
   }
 
@@ -116,39 +125,25 @@ class _GameScreenState extends State<GameScreen> {
       ..scale(scale);
   }
 
-  void _resetZoom() {
-    _fitToScreen(_lastViewportSize);
-  }
+  void _resetZoom() => _fitToScreen(_lastViewportSize);
 
   void _zoomIn() {
     final current = _transformController.value.getMaxScaleOnAxis();
     final newScale = (current * 1.3).clamp(0.2, 5.0);
-    final viewportCenter = Offset(
-      _lastViewportSize.width / 2,
-      _lastViewportSize.height / 2,
-    );
+    final viewportCenter = Offset(_lastViewportSize.width / 2, _lastViewportSize.height / 2);
     final scenePoint = _transformController.toScene(viewportCenter);
     _transformController.value = Matrix4.identity()
-      ..translate(
-        viewportCenter.dx - scenePoint.dx * newScale,
-        viewportCenter.dy - scenePoint.dy * newScale,
-      )
+      ..translate(viewportCenter.dx - scenePoint.dx * newScale, viewportCenter.dy - scenePoint.dy * newScale)
       ..scale(newScale);
   }
 
   void _zoomOut() {
     final current = _transformController.value.getMaxScaleOnAxis();
     final newScale = (current / 1.3).clamp(0.2, 5.0);
-    final viewportCenter = Offset(
-      _lastViewportSize.width / 2,
-      _lastViewportSize.height / 2,
-    );
+    final viewportCenter = Offset(_lastViewportSize.width / 2, _lastViewportSize.height / 2);
     final scenePoint = _transformController.toScene(viewportCenter);
     _transformController.value = Matrix4.identity()
-      ..translate(
-        viewportCenter.dx - scenePoint.dx * newScale,
-        viewportCenter.dy - scenePoint.dy * newScale,
-      )
+      ..translate(viewportCenter.dx - scenePoint.dx * newScale, viewportCenter.dy - scenePoint.dy * newScale)
       ..scale(newScale);
   }
 
@@ -159,13 +154,8 @@ class _GameScreenState extends State<GameScreen> {
     }
 
     final isFrozenThisRound = _freezeRoundsRemaining > 0;
-    if (isFrozenThisRound) {
-      _freezeRoundsRemaining--;
-    }
-
-    if (_freezeRoundsRemaining == 0) {
-      _freezeCycleCount = 0;
-    }
+    if (isFrozenThisRound) _freezeRoundsRemaining--;
+    if (_freezeRoundsRemaining == 0) _freezeCycleCount = 0;
 
     setState(() {
       _isAnswered = false;
@@ -175,8 +165,7 @@ class _GameScreenState extends State<GameScreen> {
     });
 
     final random = Random();
-    _currentVerse =
-        _allRemainingCards[random.nextInt(_allRemainingCards.length)];
+    _currentVerse = _allRemainingCards[random.nextInt(_allRemainingCards.length)];
 
     if (_isPlayerFrozen) {
       final remainingAfterThis = _freezeRoundsRemaining;
@@ -197,7 +186,6 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
-  // ===== الذكاء الاصطناعي يأخذ بين 20 و 30 ثانية =====
   void _scheduleAiAnswer() {
     _aiTimer?.cancel();
     final delay = Duration(seconds: 20 + Random().nextInt(11));
@@ -210,11 +198,14 @@ class _GameScreenState extends State<GameScreen> {
   void _handleAiAnswer() {
     if (_isAnswered) return;
     _aiTimer?.cancel();
+    _playSound('audio/correct.mp3');
 
     setState(() {
       _isAnswered = true;
       _correctRevealedVerseId = _currentVerse!.id;
     });
+
+    _showNotification('قال الشاعر: ${_currentVerse!.poet}', Colors.teal);
 
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) _flyCard(_currentVerse!, toPlayer: false);
@@ -228,15 +219,19 @@ class _GameScreenState extends State<GameScreen> {
 
     if (isCorrect) {
       _aiTimer?.cancel();
+      _playSound('audio/correct.mp3');
       setState(() {
         _isAnswered = true;
         _correctRevealedVerseId = tappedVerse.id;
       });
 
+      _showNotification('أحسنت! قال الشاعر: ${_currentVerse!.poet}', Colors.green);
+
       Future.delayed(const Duration(seconds: 3), () {
         if (mounted) _flyCard(tappedVerse, toPlayer: true);
       });
     } else {
+      _playSound('audio/wrong.mp3');
       setState(() {
         _wrongAttempts++;
         _wrongTappedIds.add(tappedVerse.id);
@@ -244,9 +239,7 @@ class _GameScreenState extends State<GameScreen> {
 
       Future.delayed(const Duration(seconds: 1), () {
         if (mounted) {
-          setState(() {
-            _wrongTappedIds.remove(tappedVerse.id);
-          });
+          setState(() => _wrongTappedIds.remove(tappedVerse.id));
         }
       });
 
@@ -258,10 +251,7 @@ class _GameScreenState extends State<GameScreen> {
         });
         final rounds = _freezeCycleCount;
         if (mounted) {
-          _showNotification(
-            '⚠️ 3 أخطاء! ستُجمّد $rounds ${rounds == 1 ? "جولة" : "جولات"}',
-            Colors.orange,
-          );
+          _showNotification('⚠️ 3 أخطاء! ستُجمّد $rounds ${rounds == 1 ? "جولة" : "جولات"}', Colors.orange);
         }
       }
     }
@@ -272,22 +262,33 @@ class _GameScreenState extends State<GameScreen> {
     late OverlayEntry entry;
     entry = OverlayEntry(
       builder: (context) => Positioned(
-        bottom: 0,
-        left: 0,
-        right: 0,
+        bottom: 40,
+        left: 20,
+        right: 20,
         child: IgnorePointer(
           child: Material(
             color: Colors.transparent,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              color: color.withOpacity(0.95),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.95),
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.5),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
               child: Text(
                 message,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 16,
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
+                  fontFamily: 'Amiri',
                 ),
               ),
             ),
@@ -296,9 +297,7 @@ class _GameScreenState extends State<GameScreen> {
       ),
     );
     overlay.insert(entry);
-    Future.delayed(const Duration(seconds: 2), () {
-      entry.remove();
-    });
+    Future.delayed(const Duration(seconds: 2), () => entry.remove());
   }
 
   void _nullifyCard(int verseId) {
@@ -311,26 +310,17 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _flyCard(Verse verse, {required bool toPlayer}) {
+    _playSound('audio/swipe.mp3');
+
     final sourceKey = _cardKeys[verse.id];
-    final sourceBox =
-        sourceKey?.currentContext?.findRenderObject() as RenderBox?;
+    final sourceBox = sourceKey?.currentContext?.findRenderObject() as RenderBox?;
     final targetKey = toPlayer ? _playerWonKey : _aiWonKey;
-    final targetBox =
-        targetKey.currentContext?.findRenderObject() as RenderBox?;
+    final targetBox = targetKey.currentContext?.findRenderObject() as RenderBox?;
 
-    Offset? sourcePos;
-    Size? sourceSize;
-    Offset? targetPos;
-    Size? targetSize;
-
-    if (sourceBox != null && sourceBox.hasSize) {
-      sourcePos = sourceBox.localToGlobal(Offset.zero);
-      sourceSize = sourceBox.size;
-    }
-    if (targetBox != null && targetBox.hasSize) {
-      targetPos = targetBox.localToGlobal(Offset.zero);
-      targetSize = targetBox.size;
-    }
+    Offset? sourcePos = sourceBox?.localToGlobal(Offset.zero);
+    Size? sourceSize = sourceBox?.size;
+    Offset? targetPos = targetBox?.localToGlobal(Offset.zero);
+    Size? targetSize = targetBox?.size;
 
     setState(() {
       _allRemainingCards.removeWhere((v) => v.id == verse.id);
@@ -338,16 +328,9 @@ class _GameScreenState extends State<GameScreen> {
       _correctRevealedVerseId = null;
     });
 
-    if (sourcePos == null ||
-        sourceSize == null ||
-        targetPos == null ||
-        targetSize == null) {
+    if (sourcePos == null || sourceSize == null || targetPos == null || targetSize == null) {
       setState(() {
-        if (toPlayer) {
-          _playerWonCards.add(verse);
-        } else {
-          _aiWonCards.add(verse);
-        }
+        if (toPlayer) { _playerWonCards.add(verse); } else { _aiWonCards.add(verse); }
       });
       _scheduleNextRound();
       return;
@@ -366,11 +349,7 @@ class _GameScreenState extends State<GameScreen> {
           entry.remove();
           if (mounted) {
             setState(() {
-              if (toPlayer) {
-                _playerWonCards.add(verse);
-              } else {
-                _aiWonCards.add(verse);
-              }
+              if (toPlayer) { _playerWonCards.add(verse); } else { _aiWonCards.add(verse); }
             });
             _scheduleNextRound();
           }
@@ -386,7 +365,7 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
-  void _endGame() {
+    void _endGame() {
     _aiTimer?.cancel();
     final playerCount = _playerWonCards.length;
     final aiCount = _aiWonCards.length;
@@ -394,40 +373,29 @@ class _GameScreenState extends State<GameScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('انتهت اللعبة'),
+      builder: (context) => ParchmentDialog(
+        title: 'انتهت اللعبة',
         content: Column(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            Text('مكتسباتك: $playerCount بطاقة',
-                style: const TextStyle(fontSize: 18)),
-            Text('مكتسبات الخصم: $aiCount بطاقة',
-                style: const TextStyle(fontSize: 18)),
-            const SizedBox(height: 16),
+            Text('مكتسباتك: $playerCount بطاقة', style: const TextStyle(fontSize: 22, fontFamily: 'Amiri', color: Color(0xFF2C1810))),
+            const SizedBox(height: 8),
+            Text('مكتسبات الخصم: $aiCount بطاقة', style: const TextStyle(fontSize: 22, fontFamily: 'Amiri', color: Color(0xFF2C1810))),
+            const SizedBox(height: 20),
             Text(
-              playerCount > aiCount
-                  ? '🎉 مبروك! لقد فزت!'
-                  : playerCount < aiCount
-                      ? '😢 للأسف، خسرت.'
-                      : '🤝 تعادل!',
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              playerCount > aiCount ? '🎉 مبروك! لقد فزت!' : playerCount < aiCount ? '😢 للأسف، خسرت.' : '🤝 تعادل!',
+              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, fontFamily: 'Amiri', color: Colors.brown),
             ),
           ],
         ),
         actions: [
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-            },
-            child: const Text('العودة للقائمة'),
+            onPressed: () { Navigator.pop(context); Navigator.pop(context); },
+            child: const Text('العودة للقائمة', style: TextStyle(fontFamily: 'Amiri', fontSize: 20, color: Colors.brown, fontWeight: FontWeight.bold)),
           ),
+          const SizedBox(width: 20),
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _loadVerses();
-            },
-            child: const Text('العب مرة أخرى'),
+            onPressed: () { Navigator.pop(context); _loadVerses(); },
+            child: const Text('العب مرة أخرى', style: TextStyle(fontFamily: 'Amiri', fontSize: 20, color: Colors.brown, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -437,6 +405,7 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void dispose() {
     _aiTimer?.cancel();
+    _sfxPlayer.dispose();
     _transformController.removeListener(_onTransformChanged);
     _transformController.dispose();
     super.dispose();
@@ -480,32 +449,20 @@ class _GameScreenState extends State<GameScreen> {
   Widget _buildTopBar() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      color: const Color(0xFF2C1810),
+      color: const Color(0xFF1A0D08),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: _wrongAttempts > 0
-                  ? Colors.red.withOpacity(0.3)
-                  : Colors.white.withOpacity(0.1),
+              color: _wrongAttempts > 0 ? Colors.red.withOpacity(0.3) : Colors.white.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: _wrongAttempts > 0 ? Colors.redAccent : Colors.white30,
-                width: 1.5,
-              ),
+              border: Border.all(color: _wrongAttempts > 0 ? Colors.redAccent : Colors.white30, width: 1.5),
             ),
             child: Row(
               children: [
-                const Text('الأخطاء: ',
-                    style: TextStyle(color: Colors.white70, fontSize: 12)),
-                Text('$_wrongAttempts / 3',
-                    style: TextStyle(
-                        color: _wrongAttempts > 0
-                            ? Colors.redAccent
-                            : Colors.white70,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold)),
+                const Text('الأخطاء: ', style: TextStyle(color: Colors.white70, fontSize: 12, fontFamily: 'Amiri')),
+                Text('$_wrongAttempts / 3', style: TextStyle(color: _wrongAttempts > 0 ? Colors.redAccent : Colors.white70, fontSize: 14, fontWeight: FontWeight.bold)),
               ],
             ),
           ),
@@ -513,32 +470,20 @@ class _GameScreenState extends State<GameScreen> {
             child: Center(
               child: Text(
                 'ترنم',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold, fontFamily: 'Amiri'),
               ),
             ),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: _isPlayerFrozen
-                  ? Colors.red.withOpacity(0.3)
-                  : Colors.transparent,
+              color: _isPlayerFrozen ? Colors.red.withOpacity(0.3) : Colors.transparent,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: _isPlayerFrozen ? Colors.redAccent : Colors.transparent,
-                width: 1.5,
-              ),
+              border: Border.all(color: _isPlayerFrozen ? Colors.redAccent : Colors.transparent, width: 1.5),
             ),
             child: Text(
               _isPlayerFrozen ? 'مجمّد 🚫' : '',
-              style: const TextStyle(
-                  color: Colors.redAccent,
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold),
+              style: const TextStyle(color: Colors.redAccent, fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'Amiri'),
             ),
           ),
         ],
@@ -553,16 +498,20 @@ class _GameScreenState extends State<GameScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF2C1810),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: const Color(0xFF8B6F47), width: 1),
+        border: Border.all(color: const Color(0xFFD4AF37), width: 2),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 4, offset: const Offset(0, 2))
+        ]
       ),
       child: Text(
         _currentVerse?.sadr ?? '',
         textAlign: TextAlign.center,
         style: const TextStyle(
           color: Colors.white,
-          fontSize: 22,
+          fontSize: 26,
           fontWeight: FontWeight.bold,
           height: 1.3,
+          fontFamily: 'Amiri',
         ),
       ),
     );
@@ -571,37 +520,33 @@ class _GameScreenState extends State<GameScreen> {
   Widget _buildWonPilesBar() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      color: const Color(0xFF3D2817),
+      color: const Color(0xFF1A0D08),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          _buildWonPile(_playerWonKey, _playerWonCards, 'مكتسباتك',
-              Colors.lightBlueAccent),
-          _buildWonPile(
-              _aiWonKey, _aiWonCards, 'مكتسبات الخصم', Colors.orangeAccent),
+          _buildWonPile(_playerWonKey, _playerWonCards, 'مكتسباتك', Colors.lightBlueAccent),
+          _buildWonPile(_aiWonKey, _aiWonCards, 'مكتسبات الخصم', Colors.orangeAccent),
         ],
       ),
     );
   }
 
-  Widget _buildWonPile(
-      GlobalKey key, List<Verse> cards, String label, Color color) {
+  Widget _buildWonPile(GlobalKey key, List<Verse> cards, String label, Color color) {
     return Row(
       children: [
         Text(
           '$label: ${cards.length}',
-          style: TextStyle(
-              color: color, fontSize: 13, fontWeight: FontWeight.bold),
+          style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'Amiri'),
         ),
-        const SizedBox(width: 6),
+        const SizedBox(width: 8),
         Container(
           key: key,
-          width: 36,
-          height: 46,
+          width: 40,
+          height: 50,
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.1),
             borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: color.withOpacity(0.7), width: 1.5),
+            border: Border.all(color: color.withOpacity(0.7), width: 2),
           ),
           child: Stack(
             children: [
@@ -613,10 +558,9 @@ class _GameScreenState extends State<GameScreen> {
                   bottom: 2.0 + (4 - i) * 1.8,
                   child: Container(
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFDFBF5),
+                      color: const Color(0xFF2E7D32), // Green back
                       borderRadius: BorderRadius.circular(2),
-                      border: Border.all(
-                          color: const Color(0xFF2E7D32), width: 0.8),
+                      border: Border.all(color: const Color(0xFFD4AF37), width: 1.0), // Gold border
                     ),
                   ),
                 ),
@@ -628,16 +572,19 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Widget _buildWoodenFloor() {
-    // التحريك يُفعَّل فقط عندما تكون اللوحة مكبَّرة (أكبر من حجم الملء للشاشة)
     final isPanEnabled = _currentScale > _fitScale * 1.05;
 
     return Container(
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF6B4A2B), Color(0xFF8B6F47), Color(0xFF6B4A2B)],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
+        image: DecorationImage(
+          image: AssetImage('assets/images/wood_bg.jpg'),
+          fit: BoxFit.cover,
+          colorFilter: ColorFilter.mode(
+            Colors.black38,
+            BlendMode.darken,
+          ),
         ),
+        color: Color(0xFF3E2723), 
       ),
       child: Stack(
         children: [
@@ -648,7 +595,6 @@ class _GameScreenState extends State<GameScreen> {
               maxScale: 5.0,
               constrained: false,
               boundaryMargin: const EdgeInsets.all(600),
-              // التحريك يعمل فقط عند التكبير، لمنع الإزاحة الخطأ عند الضغط على بطاقة
               panEnabled: isPanEnabled,
               scaleEnabled: true,
               child: SizedBox(
@@ -656,20 +602,21 @@ class _GameScreenState extends State<GameScreen> {
                 height: _boardHeight,
                 child: Container(
                   margin: const EdgeInsets.all(30),
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF5B9BD5), Color(0xFF3A7BBF)],
+                      colors: [Color(0xFF1E88E5), Color(0xFF1565C0)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFF0D47A1), width: 8),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.5),
-                        spreadRadius: 4,
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
+                        color: Colors.black.withOpacity(0.7),
+                        spreadRadius: 5,
+                        blurRadius: 25,
+                        offset: const Offset(0, 10),
                       ),
                     ],
                   ),
@@ -677,11 +624,11 @@ class _GameScreenState extends State<GameScreen> {
                     children: [
                       Expanded(child: _buildCardZone(_playerCards)),
                       Container(
-                        width: 30,
+                        width: 40,
                         margin: const EdgeInsets.symmetric(vertical: 20),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(15),
+                          color: Colors.black.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(20),
                         ),
                       ),
                       Expanded(child: _buildCardZone(_aiCards)),
@@ -691,31 +638,23 @@ class _GameScreenState extends State<GameScreen> {
               ),
             ),
           ),
-          Positioned(
-            bottom: 12,
-            left: 12,
-            child: _buildZoomControls(),
-          ),
+          Positioned(bottom: 12, left: 12, child: _buildZoomControls()),
           Positioned(
             bottom: 12,
             right: 12,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.5),
+                color: Colors.black.withOpacity(0.6),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Row(
                 children: [
-                  Icon(
-                    isPanEnabled ? Icons.pan_tool : Icons.pinch,
-                    color: Colors.white70,
-                    size: 16,
-                  ),
+                  Icon(isPanEnabled ? Icons.pan_tool : Icons.pinch, color: Colors.white70, size: 16),
                   const SizedBox(width: 6),
                   Text(
                     isPanEnabled ? 'اسحب للتنقل' : 'اسحب بإصبعين للتكبير',
-                    style: const TextStyle(color: Colors.white70, fontSize: 11),
+                    style: const TextStyle(color: Colors.white70, fontSize: 12, fontFamily: 'Amiri'),
                   ),
                 ],
               ),
@@ -728,28 +667,15 @@ class _GameScreenState extends State<GameScreen> {
 
   Widget _buildZoomControls() {
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.6),
-        borderRadius: BorderRadius.circular(30),
-      ),
+      decoration: BoxDecoration(color: Colors.black.withOpacity(0.6), borderRadius: BorderRadius.circular(30)),
       padding: const EdgeInsets.all(4),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           _zoomButton(Icons.zoom_out, _zoomOut),
-          Container(
-            width: 1,
-            height: 24,
-            color: Colors.white30,
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-          ),
+          Container(width: 1, height: 24, color: Colors.white30, margin: const EdgeInsets.symmetric(horizontal: 4)),
           _zoomButton(Icons.zoom_in, _zoomIn),
-          Container(
-            width: 1,
-            height: 24,
-            color: Colors.white30,
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-          ),
+          Container(width: 1, height: 24, color: Colors.white30, margin: const EdgeInsets.symmetric(horizontal: 4)),
           _zoomButton(Icons.center_focus_strong, _resetZoom),
         ],
       ),
@@ -760,10 +686,7 @@ class _GameScreenState extends State<GameScreen> {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(30),
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Icon(icon, color: Colors.white, size: 22),
-      ),
+      child: Padding(padding: const EdgeInsets.all(10), child: Icon(icon, color: Colors.white, size: 22)),
     );
   }
 
@@ -783,9 +706,7 @@ class _GameScreenState extends State<GameScreen> {
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.all(3.0),
-                      child: verse == null
-                          ? const SizedBox.shrink()
-                          : _buildKarutaCard(verse),
+                      child: verse == null ? const SizedBox.shrink() : _buildKarutaCard(verse),
                     ),
                   ),
               ],
@@ -813,33 +734,33 @@ class _GameScreenState extends State<GameScreen> {
     final key = _cardKeys.putIfAbsent(verse.id, () => GlobalKey());
 
     return GestureDetector(
-      onTap:
-          (_isAnswered || _isPlayerFrozen) ? null : () => _checkAnswer(verse),
+      onTap: (_isAnswered || _isPlayerFrozen) ? null : () => _checkAnswer(verse),
       child: Container(
         key: key,
         decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: borderColor, width: 2.5),
+          border: Border.all(color: borderColor, width: 4.0), // إطار أخضر أثخن
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 2,
-              offset: const Offset(1, 2),
+              color: Colors.black.withOpacity(0.4), // ظل أقوى وأوضح
+              blurRadius: 6,                      // تنعيم الظل
+              offset: const Offset(2, 4),         // إزاحة الظل للأسفل
             ),
           ],
         ),
-        padding: const EdgeInsets.all(6),
+        padding: const EdgeInsets.all(4),
         child: Center(
           child: Text(
             verse.ajz,
             textAlign: TextAlign.center,
             softWrap: true,
             style: const TextStyle(
-              fontSize: 22,
+              fontSize: 24,
               fontWeight: FontWeight.bold,
-              height: 1.35,
+              height: 1.3,
               color: Color(0xFF1A1A1A),
+              fontFamily: 'Amiri',
             ),
           ),
         ),
@@ -848,7 +769,7 @@ class _GameScreenState extends State<GameScreen> {
   }
 }
 
-// ====== ودجت البطاقة الطائرة ======
+// ====== ودجت البطاقة الطائرة (مع حركة القلب) ======
 class _FlyingCard extends StatefulWidget {
   final Offset startPos;
   final Offset endPos;
@@ -870,17 +791,13 @@ class _FlyingCard extends StatefulWidget {
   State<_FlyingCard> createState() => _FlyingCardState();
 }
 
-class _FlyingCardState extends State<_FlyingCard>
-    with SingleTickerProviderStateMixin {
+class _FlyingCardState extends State<_FlyingCard> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 700),
-      vsync: this,
-    );
+    _controller = AnimationController(duration: const Duration(milliseconds: 800), vsync: this);
     _controller.forward().whenComplete(widget.onComplete);
   }
 
@@ -896,41 +813,29 @@ class _FlyingCardState extends State<_FlyingCard>
       animation: _controller,
       builder: (context, child) {
         final t = Curves.easeInOut.transform(_controller.value);
-        final left =
-            widget.startPos.dx + (widget.endPos.dx - widget.startPos.dx) * t;
-        final top =
-            widget.startPos.dy + (widget.endPos.dy - widget.startPos.dy) * t;
-        final width = widget.startSize.width +
-            (widget.endSize.width - widget.startSize.width) * t;
-        final height = widget.startSize.height +
-            (widget.endSize.height - widget.startSize.height) * t;
+        final left = widget.startPos.dx + (widget.endPos.dx - widget.startPos.dx) * t;
+        final top = widget.startPos.dy + (widget.endPos.dy - widget.startPos.dy) * t;
+        final width = widget.startSize.width + (widget.endSize.width - widget.startSize.width) * t;
+        final height = widget.startSize.height + (widget.endSize.height - widget.startSize.height) * t;
 
-        return Positioned(
-          left: left,
-          top: top,
-          width: width,
-          height: height,
-          child: Opacity(
-            opacity: 1 - t * 0.4,
-            child: Material(
-              color: Colors.transparent,
-              child: Container(
+        // زاوية الدوران (من 0 إلى 180 درجة)
+        final angle = t * pi; 
+        // هل نحن في النصف الأول (الوجه) أم الثاني (الظهر)؟
+        final isFront = angle < (pi / 2);
+
+        // محتوى البطاقة (وجه أو ظهر)
+        Widget cardContent = isFront
+            ? Container(
+                // وجه البطاقة (أبيض بالنص)
                 decoration: BoxDecoration(
-                  color: const Color(0xFFC8E6C9),
-                  borderRadius: BorderRadius.circular(3),
-                  border: Border.all(
-                    color: Colors.green,
-                    width: 2,
-                  ),
+                  color: const Color(0xFFFDFBF5),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xFF2E7D32), width: 4.0),
                   boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.4),
-                      blurRadius: 8,
-                      offset: const Offset(2, 4),
-                    ),
+                    BoxShadow(color: Colors.black.withOpacity(0.6), blurRadius: 12, offset: const Offset(3, 6)),
                   ],
                 ),
-                padding: const EdgeInsets.all(2),
+                padding: const EdgeInsets.all(4),
                 child: Center(
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
@@ -940,16 +845,55 @@ class _FlyingCardState extends State<_FlyingCard>
                         widget.verse.ajz,
                         textAlign: TextAlign.center,
                         style: const TextStyle(
-                          fontSize: 22,
+                          fontSize: 24,
                           fontWeight: FontWeight.bold,
                           height: 1.2,
                           color: Color(0xFF1A1A1A),
+                          fontFamily: 'Amiri',
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
+              )
+            : Transform(
+                // ظهر البطاقة (أخضر)
+                // نعكسها أفقياً حتى لا تظهر معكوسة أثناء الدوران
+                transform: Matrix4.identity()..rotateY(pi),
+                alignment: Alignment.center,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2E7D32), // لون أخضر
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFD4AF37), width: 4.0), // إطار ذهبي
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withOpacity(0.6), blurRadius: 12, offset: const Offset(3, 6)),
+                    ],
+                  ),
+                  child: Center(
+                    child: Container(
+                      margin: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.white24, width: 1.5),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+
+        return Positioned(
+          left: left,
+          top: top,
+          width: width,
+          height: height,
+          // تطبيق منظور ثلاثي الأبعاد (Perspective) لتبدو الحركة واقعية
+          child: Transform(
+            transform: Matrix4.identity()..setEntry(3, 2, 0.001)..rotateY(angle),
+            alignment: Alignment.center,
+            child: Material(
+              color: Colors.transparent,
+              child: cardContent,
             ),
           ),
         );

@@ -16,7 +16,7 @@ class TarannumApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.indigo,
         scaffoldBackgroundColor: const Color(0xFFF8F5F0),
-        fontFamily: 'Arial',
+        fontFamily: 'Amiri', // <--- تفعيل خط أميري
         useMaterial3: true,
       ),
       builder: (context, child) {

@@ -7,7 +7,7 @@ class VerseService {
   Future<List<Verse>> loadVerses() async {
     try {
       // قراءة محتوى الملف من مجلد assets
-      final String response = await rootBundle.loadString('assets/data/verses.json');
+      final String response = await rootBundle.loadString('assets/data/verses_combined.json');
       
       // تحويل النص إلى قائمة JSON
       final List<dynamic> data = json.decode(response);

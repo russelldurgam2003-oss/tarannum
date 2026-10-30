@@ -7,7 +7,8 @@ import '../services/verse_service.dart';
 import '../widgets/parchment_dialog.dart';
 
 class GameScreen extends StatefulWidget {
-  const GameScreen({super.key});
+  final String level; // <--- إضافة هذا السطر
+  const GameScreen({super.key, required this.level}); // <--- تعديل الـ constructor
 
   @override
   State<GameScreen> createState() => _GameScreenState();
@@ -78,7 +79,7 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Future<void> _loadVerses() async {
-    final verses = await _verseService.loadVerses();
+     final verses = await _verseService.loadVerses(widget.level); 
     setState(() => _isLoading = false);
     _startGame(verses);
   }

@@ -21,7 +21,9 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/data/verses_combined.json
+    - assets/data/verses_beginner.json       
+    - assets/data/verses_intermediate.json 
+    - assets/data/verses_expert.json 
     - assets/images/logo.png
     - assets/images/bg.jpg
     - assets/images/button_bg.png

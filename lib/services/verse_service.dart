@@ -3,19 +3,21 @@ import 'package:flutter/services.dart' show rootBundle;
 import '../models/verse.dart';
 
 class VerseService {
-  // دالة لتحميل الأبيات من ملف JSON
-  Future<List<Verse>> loadVerses() async {
+  Future<List<Verse>> loadVerses(String level) async {
+    String path = 'assets/data/verses_beginner.json'; // الافتراضي
+    
+    if (level == 'intermediate') {
+      path = 'assets/data/verses_intermediate.json';
+    } else if (level == 'expert') {
+      path = 'assets/data/verses_expert.json';
+    }
+
     try {
-      // قراءة محتوى الملف من مجلد assets
-      final String response = await rootBundle.loadString('assets/data/verses_combined.json');
-      
-      // تحويل النص إلى قائمة JSON
+      final String response = await rootBundle.loadString(path);
       final List<dynamic> data = json.decode(response);
-      
-      // تحويل كل عنصر JSON إلى كائن Verse
       return data.map((json) => Verse.fromJson(json)).toList();
     } catch (e) {
-      print('خطأ في تحميل الأبيات: $e');
+      print('خطأ في تحميل الأبيات ($path): $e');
       return [];
     }
   }

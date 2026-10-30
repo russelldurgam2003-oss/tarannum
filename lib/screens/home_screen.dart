@@ -1,9 +1,9 @@
-import 'dart:ui'; // <--- مهم جداً لإضافة الظل المطابق للصورة
+import 'dart:ui'; 
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
+import '../widgets/parchment_dialog.dart';
 import 'rules_screen.dart';
 import 'game_screen.dart';
-import '../widgets/parchment_dialog.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -47,6 +47,35 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _audioPlayer.dispose();
     super.dispose();
+  }
+
+  // دالة مساعدة لإنشاء أزرار اختيار المستوى
+  Widget _buildLevelButton(BuildContext context, String text, String level) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.brown.withOpacity(0.85),
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+        ),
+        onPressed: () {
+          Navigator.pop(context); // إغلاق نافذة المستويات
+          _audioPlayer.pause(); 
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => GameScreen(level: level)),
+          ).then((_) {
+            if (_isAudioStarted) _audioPlayer.resume(); 
+          });
+        },
+        child: Text(
+          text,
+          style: const TextStyle(fontFamily: 'Amiri', fontSize: 22, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
   }
 
   @override
@@ -107,20 +136,32 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           const SizedBox(height: 40),
 
+                          // زر اللعب الفردي
                           AnimatedCustomButton(
                             text: 'اللعب الفردي',
                             onPressed: () {
-                              _audioPlayer.pause(); 
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => const GameScreen()),
-                              ).then((_) {
-                                if (_isAudioStarted) _audioPlayer.resume(); 
-                              });
+                              showDialog(
+                                context: context,
+                                builder: (context) => ParchmentDialog(
+                                  title: 'اختر مستوى الصعوبة',
+                                  content: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      _buildLevelButton(context, 'مبتدئ (100 بيت)', 'beginner'),
+                                      const SizedBox(height: 10),
+                                      _buildLevelButton(context, 'متوسط (200 بيت)', 'intermediate'),
+                                      const SizedBox(height: 10),
+                                      _buildLevelButton(context, 'محترف (300 بيت)', 'expert'),
+                                    ],
+                                  ),
+                                  actions: const [], 
+                                ),
+                              );
                             },
                           ),
                           const SizedBox(height: 15),
 
+                          // زر اللعب مع الأصدقاء
                           AnimatedCustomButton(
                             text: 'اللعب مع الأصدقاء (أونلاين)',
                             onPressed: () {
@@ -145,6 +186,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           const SizedBox(height: 25),
 
+                          // زر القوانين
                           TextButton.icon(
                             onPressed: () {
                               Navigator.push(
@@ -207,7 +249,6 @@ class _AnimatedCustomButtonState extends State<AnimatedCustomButton> {
       scale = 1.05; 
     }
 
-    // إعدادات الظل تتغير حسب مرور الماوس
     double shadowBlur = _isHovered ? 12.0 : 6.0; 
     double shadowOpacity = _isHovered ? 0.8 : 0.5;
     double shadowOffsetY = _isHovered ? 8.0 : 4.0;
@@ -233,7 +274,7 @@ class _AnimatedCustomButtonState extends State<AnimatedCustomButton> {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                // 1. طبقة الظل (صورة الزر نفسها لكن سوداء ومموهة)
+                // الظل المطابق
                 Positioned(
                   top: shadowOffsetY,
                   left: 0,
@@ -242,7 +283,7 @@ class _AnimatedCustomButtonState extends State<AnimatedCustomButton> {
                   child: ColorFiltered(
                     colorFilter: ColorFilter.mode(
                       Colors.black.withOpacity(shadowOpacity),
-                      BlendMode.srcIn, // يحول الصورة إلى لون واحد فقط
+                      BlendMode.srcIn, 
                     ),
                     child: ImageFiltered(
                       imageFilter: ImageFilter.blur(sigmaX: shadowBlur, sigmaY: shadowBlur),
@@ -253,12 +294,12 @@ class _AnimatedCustomButtonState extends State<AnimatedCustomButton> {
                     ),
                   ),
                 ),
-                // 2. طبقة الزر الأصلية
+                // الزر
                 Image.asset(
                   'assets/images/button_bg.png',
                   fit: BoxFit.fill,
                 ),
-                // 3. النص
+                // النص
                 Center(
                   child: Padding(
                     padding: const EdgeInsets.only(bottom: 5),

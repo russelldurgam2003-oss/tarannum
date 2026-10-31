@@ -147,11 +147,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                   content: Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      _buildLevelButton(context, 'مبتدئ (100 بيت)', 'beginner'),
+                                      _buildLevelButton(context, 'مبتدأ 🌱', 'beginner'),
                                       const SizedBox(height: 10),
-                                      _buildLevelButton(context, 'متوسط (200 بيت)', 'intermediate'),
+                                      _buildLevelButton(context, 'متوسط 📜', 'intermediate'),
                                       const SizedBox(height: 10),
-                                      _buildLevelButton(context, 'محترف (300 بيت)', 'expert'),
+                                      _buildLevelButton(context, 'محترف 👑', 'expert'),
                                     ],
                                   ),
                                   actions: const [], 

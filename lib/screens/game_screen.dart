@@ -5,6 +5,7 @@ import 'package:audioplayers/audioplayers.dart';
 import '../models/verse.dart';
 import '../services/verse_service.dart';
 import '../widgets/parchment_dialog.dart';
+import '../services/audio_service.dart';
 
 class GameScreen extends StatefulWidget {
   final String level; // <--- إضافة هذا السطر
@@ -60,6 +61,7 @@ class _GameScreenState extends State<GameScreen> {
     _transformController.addListener(_onTransformChanged);
     _sfxPlayer.setPlayerMode(PlayerMode.lowLatency);
     _loadVerses();
+    AudioService.pauseBGM();
   }
 
   void _onTransformChanged() {
@@ -410,6 +412,7 @@ class _GameScreenState extends State<GameScreen> {
     _transformController.removeListener(_onTransformChanged);
     _transformController.dispose();
     super.dispose();
+    AudioService.playBGM();
   }
 
   @override
@@ -447,46 +450,45 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  Widget _buildTopBar() {
+    Widget _buildTopBar() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       color: const Color(0xFF1A0D08),
-      child: Row(
+      child: Stack(
+        alignment: Alignment.center,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: _wrongAttempts > 0 ? Colors.red.withOpacity(0.3) : Colors.white.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: _wrongAttempts > 0 ? Colors.redAccent : Colors.white30, width: 1.5),
-            ),
-            child: Row(
-              children: [
-                const Text('الأخطاء: ', style: TextStyle(color: Colors.white70, fontSize: 12, fontFamily: 'Amiri')),
-                Text('$_wrongAttempts / 3', style: TextStyle(color: _wrongAttempts > 0 ? Colors.redAccent : Colors.white70, fontSize: 14, fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ),
-          const Expanded(
-            child: Center(
-              child: Text(
-                'ترنم',
-                style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold, fontFamily: 'Amiri'),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _wrongAttempts > 0 ? Colors.red.withOpacity(0.3) : Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: _wrongAttempts > 0 ? Colors.redAccent : Colors.white30, width: 1.5),
+                ),
+                child: Row(
+                  children: [
+                    const Text('الأخطاء: ', style: TextStyle(color: Colors.white70, fontSize: 12, fontFamily: 'Amiri')),
+                    Text('$_wrongAttempts / 3', style: TextStyle(color: _wrongAttempts > 0 ? Colors.redAccent : Colors.white70, fontSize: 14, fontWeight: FontWeight.bold)),
+                  ],
+                ),
               ),
-            ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _isPlayerFrozen ? Colors.red.withOpacity(0.3) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: _isPlayerFrozen ? Colors.redAccent : Colors.transparent, width: 1.5),
+                ),
+                child: Text(
+                  _isPlayerFrozen ? 'مجمّد 🚫' : '        ', // مسافات وهمية للحفاظ على التوازن
+                  style: const TextStyle(color: Colors.redAccent, fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'Amiri'),
+                ),
+              ),
+            ],
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: _isPlayerFrozen ? Colors.red.withOpacity(0.3) : Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: _isPlayerFrozen ? Colors.redAccent : Colors.transparent, width: 1.5),
-            ),
-            child: Text(
-              _isPlayerFrozen ? 'مجمّد 🚫' : '',
-              style: const TextStyle(color: Colors.redAccent, fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'Amiri'),
-            ),
-          ),
+          const Text('ترنم', style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold, fontFamily: 'Amiri')),
         ],
       ),
     );
@@ -603,15 +605,13 @@ class _GameScreenState extends State<GameScreen> {
                 height: _boardHeight,
                 child: Container(
                   margin: const EdgeInsets.all(30),
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF1E88E5), Color(0xFF1565C0)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+                    image: const DecorationImage(
+                      image: AssetImage('assets/images/mat_green.png'),
+                      fit: BoxFit.fill,
                     ),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFF0D47A1), width: 8),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.7),

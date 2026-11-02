@@ -19,15 +19,14 @@ class ParchmentDialog extends StatelessWidget {
       elevation: 0,
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
       child: Container(
-        width: 700, // حجم مناسب للصورة الأفقية
+        width: 700, // الحجم الأصلي
         constraints: const BoxConstraints(maxHeight: 400),
         decoration: const BoxDecoration(
           image: DecorationImage(
-            image: AssetImage('assets/images/parchment_horizontal.png'),
+            image: AssetImage('assets/images/parchment_horizontal.png'), // <--- المخطوطة الأفقية
             fit: BoxFit.fill,
           ),
         ),
-        // ضبط الحواف لتناسب الفراغ الداخلي في المخطوطة الأفقية
         padding: const EdgeInsets.only(left: 60, right: 60, top: 50, bottom: 50),
         child: Column(
           mainAxisSize: MainAxisSize.min,

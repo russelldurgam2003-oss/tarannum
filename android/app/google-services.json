@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "707292820172",
+    "project_id": "tarannum-290a6",
+    "storage_bucket": "tarannum-290a6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:707292820172:android:6f6968a09c5b70e1250869",
+        "android_client_info": {
+          "package_name": "com.example.tarannum"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyANF7ZLIKqSmpOEBr-iQ2XHkl7V0woM4Q8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

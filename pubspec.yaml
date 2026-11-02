@@ -11,6 +11,8 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
   audioplayers: ^6.0.0
+  firebase_core: ^5.1.0
+  cloud_firestore: ^7.1.0
 
 dev_dependencies:
   flutter_test:
@@ -30,6 +32,8 @@ flutter:
     - assets/images/wood_bg.jpg
     - assets/images/parchment_vertical.png
     - assets/images/parchment_horizontal.png
+    - assets/images/mat_green.png
+    - assets/images/mat_red.png
     - assets/audio/bgm.mp3
     - assets/audio/correct.mp3
     - assets/audio/wrong.mp3

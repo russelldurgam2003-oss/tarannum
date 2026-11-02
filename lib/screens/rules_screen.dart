@@ -53,13 +53,12 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
         child: SafeArea(
           child: Column(
             children: [
-              // شريط علوي مخصص
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                 child: Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.white, size: 30),
+                      icon: const Icon(Icons.arrow_forward, color: Colors.white, size: 30),
                       onPressed: () => Navigator.pop(context),
                     ),
                     const Expanded(
@@ -90,17 +89,16 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
                     child: ScaleTransition(
                       scale: _scaleAnimation,
                       child: Container(
-                        // زيادة الارتفاع الأقصى لتصبح المخطوطة أطول
                         constraints: const BoxConstraints(maxWidth: 750, maxHeight: 1000), 
                         margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                         decoration: const BoxDecoration(
                           image: DecorationImage(
                             image: AssetImage('assets/images/parchment_vertical.png'),
-                            fit: BoxFit.fill, // ستمدد الصورة لتغطي الطول الجديد
+                            fit: BoxFit.fill, 
                           ),
                         ),
-                        // زيادة الحواف السفلية والعلوية قليلاً لتناسب الطول الجديد
-                        padding: const EdgeInsets.only(left: 130, right: 130, top: 130, bottom: 150),
+                        // المساحات الأصلية
+                        padding: const EdgeInsets.only(left: 130, right: 130, top: 120, bottom: 120),
                         child: SingleChildScrollView(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.center, 
@@ -128,7 +126,7 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
                                 '1. سيظهر لك "صدر" البيت في أعلى الشاشة.\n'
                                 '2. أسفل الشاشة، ستجد بطاقات مبعثرة.\n'
                                 '3. اختر البطاقة التي تحتوي على "العجز" الصحيح بأسرع وقت.\n'
-                                '4. الإجابة الصحيحة تمنحك البطاقة.', // تم حذف "والخطأ يخصم منك"
+                                '4. الإجابة الصحيحة تمنحك البطاقة.',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(fontFamily: 'Amiri', fontSize: 18, color: Color(0xFF2C1810), height: 1.6),
                               ),
@@ -154,7 +152,6 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
                               ),
                               const SizedBox(height: 8),
                               const Text(
-                                // تقسيم النص إلى سطرين
                                 'من يرتكب 3 أخطاء يتم تجميده لجولة.\nوإذا تكرر الخطأ، تتراكم جولات التجميد.', 
                                 textAlign: TextAlign.center,
                                 style: TextStyle(fontFamily: 'Amiri', fontSize: 18, color: Color(0xFF2C1810), height: 1.5)

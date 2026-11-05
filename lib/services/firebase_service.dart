@@ -202,4 +202,13 @@ class FirebaseService {
       }
     });
   }
+    // دالة مغادرة اللعبة في اللعب الجماعي
+  Future<void> leaveGame(String roomCode, String leavingPlayerId) async {
+    final roomRef = _db.collection('rooms').doc(roomCode);
+    await roomRef.update({
+      'status': 'finished',
+      'winnerId': leavingPlayerId == 'p1' ? 'p2' : 'p1', // الطرف الآخر يفوز
+      'endReason': 'leave',
+    });
+  }
 }

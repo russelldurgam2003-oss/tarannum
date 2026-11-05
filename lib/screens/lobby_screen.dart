@@ -137,8 +137,25 @@ class _LobbyScreenState extends State<LobbyScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('اللعب الجماعي', style: TextStyle(fontFamily: 'Amiri', fontWeight: FontWeight.bold)),
+            appBar: AppBar(
+        title: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.brown.withOpacity(0.75), // اللون البني
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white24, width: 1.5),
+          ),
+          child: const Text(
+            'اللعب الجماعي',
+            style: TextStyle(
+              fontFamily: 'Amiri',
+              fontWeight: FontWeight.bold,
+              fontSize: 22,
+              color: Colors.white,
+              shadows: [Shadow(blurRadius: 10, color: Colors.black, offset: Offset(2, 2))],
+            ),
+          ),
+        ),
         centerTitle: true, 
         backgroundColor: Colors.transparent,
         elevation: 0,

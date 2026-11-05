@@ -34,6 +34,7 @@ flutter:
     - assets/images/parchment_horizontal.png
     - assets/images/mat_green.png
     - assets/images/mat_red.png
+    - assets/images/settings_icon.png
     - assets/audio/bgm.mp3
     - assets/audio/correct.mp3
     - assets/audio/wrong.mp3

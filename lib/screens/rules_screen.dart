@@ -15,19 +15,9 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200), 
-    );
-
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
-    );
-
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
-    );
-
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200));
+    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
     _controller.forward(); 
   }
 
@@ -39,6 +29,8 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -46,123 +38,137 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
         decoration: const BoxDecoration(
           image: DecorationImage(
             image: AssetImage('assets/images/bg.jpg'),
-            fit: BoxFit.cover,
-            colorFilter: ColorFilter.mode(Colors.black54, BlendMode.darken),
+            fit: BoxFit.cover, 
+            colorFilter: ColorFilter.mode(Colors.black45, BlendMode.darken), 
           ),
         ),
         child: SafeArea(
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                padding: EdgeInsets.symmetric(horizontal: isMobile ? 10 : 20, vertical: 5),
                 child: Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.arrow_forward, color: Colors.white, size: 30),
+                      icon: Icon(Icons.arrow_forward, color: Colors.white, size: isMobile ? 24 : 30),
                       onPressed: () => Navigator.pop(context),
                     ),
-                    const Expanded(
+                    Expanded(
                       child: Center(
-                        child: Text(
-                          'قوانين اللعبة',
-                          style: TextStyle(
-                            fontFamily: 'Amiri',
-                            fontWeight: FontWeight.bold,
-                            fontSize: 32,
-                            color: Colors.white,
-                            shadows: [
-                              Shadow(blurRadius: 10, color: Colors.black, offset: Offset(2, 2))
-                            ],
+                        // إضافة الخلفية البنية للكلمة
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.brown.withOpacity(0.75), // اللون البني
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.white24, width: 1.5), // إطار خفيف
+                          ),
+                          child: Text(
+                            'قوانين اللعبة',
+                            style: TextStyle(
+                              fontFamily: 'Amiri',
+                              fontWeight: FontWeight.bold,
+                              fontSize: isMobile ? 22 : 32,
+                              color: Colors.white,
+                              shadows: const [Shadow(blurRadius: 10, color: Colors.black, offset: Offset(2, 2))]
+                            ),
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 48), 
+                    SizedBox(width: isMobile ? 40 : 48), 
                   ],
                 ),
               ),
               
               Expanded(
-                child: Center(
+                child: Align(
+                  alignment: Alignment.topCenter,
                   child: FadeTransition(
                     opacity: _fadeAnimation,
                     child: ScaleTransition(
                       scale: _scaleAnimation,
                       child: Container(
-                        constraints: const BoxConstraints(maxWidth: 750, maxHeight: 1000), 
-                        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        constraints: BoxConstraints(
+                          maxWidth: isMobile ? MediaQuery.of(context).size.width * 0.88 : 750, 
+                          maxHeight: isMobile ? MediaQuery.of(context).size.height * 0.80 : 1000, 
+                        ), 
+                        margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                         decoration: const BoxDecoration(
                           image: DecorationImage(
                             image: AssetImage('assets/images/parchment_vertical.png'),
                             fit: BoxFit.fill, 
                           ),
                         ),
-                        // المساحات الأصلية
-                        padding: const EdgeInsets.only(left: 130, right: 130, top: 120, bottom: 120),
+                        padding: EdgeInsets.only(
+                          left: isMobile ? 40 : 130, 
+                          right: isMobile ? 40 : 130, 
+                          top: isMobile ? 90 : 120, 
+                          bottom: isMobile ? 90 : 120
+                        ),
                         child: SingleChildScrollView(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.center, 
                             children: [
-                              const Text(
+                              Text(
                                 'مرحباً بك في ترنم!', 
                                 textAlign: TextAlign.center,
-                                style: TextStyle(fontFamily: 'Amiri', fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF4A2C11))
+                                style: TextStyle(fontFamily: 'Amiri', fontSize: isMobile ? 15 : 24, fontWeight: FontWeight.bold, color: const Color(0xFF4A2C11))
                               ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                'لعبة مستوحاة من الكاروتا اليابانية، لكن بأبيات الشعر العربي.', 
+                              const SizedBox(height: 5),
+                              Text(
+                                'لعبة مستوحاة من الكاروتا اليابانية،\nلكن بأبيات الشعر العربي.', 
                                 textAlign: TextAlign.center,
-                                style: TextStyle(fontFamily: 'Amiri', fontSize: 18, color: Color(0xFF2C1810), height: 1.5)
+                                style: TextStyle(fontFamily: 'Amiri', fontSize: isMobile ? 12 : 18, color: const Color(0xFF2C1810), height: 1.3)
                               ),
-                              const SizedBox(height: 20),
+                              const SizedBox(height: 15),
                               
-                              const Text(
+                              Text(
                                 'كيف تلعب؟', 
                                 textAlign: TextAlign.center,
-                                style: TextStyle(fontFamily: 'Amiri', fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF4A2C11))
+                                style: TextStyle(fontFamily: 'Amiri', fontSize: isMobile ? 14 : 22, fontWeight: FontWeight.bold, color: const Color(0xFF4A2C11))
                               ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                '1. سيظهر لك "صدر" البيت في أعلى الشاشة.\n'
-                                '2. أسفل الشاشة، ستجد بطاقات مبعثرة.\n'
-                                '3. اختر البطاقة التي تحتوي على "العجز" الصحيح بأسرع وقت.\n'
-                                '4. الإجابة الصحيحة تمنحك البطاقة.',
+                              const SizedBox(height: 5),
+                              Text(
+                                '1. سيظهر لك "صدر" البيت في الأعلى.\n'
+                                '2. اختر بطاقة "العجز" الصحيحة من اللوحة.\n'
+                                '3. الإجابة الصحيحة تمنحك البطاقة.',
                                 textAlign: TextAlign.center,
-                                style: TextStyle(fontFamily: 'Amiri', fontSize: 18, color: Color(0xFF2C1810), height: 1.6),
+                                style: TextStyle(fontFamily: 'Amiri', fontSize: isMobile ? 12 : 18, color: const Color(0xFF2C1810), height: 1.4),
                               ),
-                              const SizedBox(height: 20),
+                              const SizedBox(height: 15),
                               
-                              const Text(
+                              Text(
                                 'الفوز باللعبة:', 
                                 textAlign: TextAlign.center,
-                                style: TextStyle(fontFamily: 'Amiri', fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF4A2C11))
+                                style: TextStyle(fontFamily: 'Amiri', fontSize: isMobile ? 14 : 22, fontWeight: FontWeight.bold, color: const Color(0xFF4A2C11))
                               ),
-                              const SizedBox(height: 8),
-                              const Text(
+                              const SizedBox(height: 5),
+                              Text(
                                 'من يجمع أكبر عدد من البطاقات هو الفائز!', 
                                 textAlign: TextAlign.center,
-                                style: TextStyle(fontFamily: 'Amiri', fontSize: 18, color: Color(0xFF2C1810), height: 1.5)
+                                style: TextStyle(fontFamily: 'Amiri', fontSize: isMobile ? 12 : 18, color: const Color(0xFF2C1810), height: 1.3)
                               ),
-                              const SizedBox(height: 20),
+                              const SizedBox(height: 15),
                               
-                              const Text(
+                              Text(
                                 'العقوبات (التجميد):', 
                                 textAlign: TextAlign.center,
-                                style: TextStyle(fontFamily: 'Amiri', fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF4A2C11))
+                                style: TextStyle(fontFamily: 'Amiri', fontSize: isMobile ? 14 : 22, fontWeight: FontWeight.bold, color: const Color(0xFF4A2C11))
                               ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                'من يرتكب 3 أخطاء يتم تجميده لجولة.\nوإذا تكرر الخطأ، تتراكم جولات التجميد.', 
+                              const SizedBox(height: 5),
+                              Text(
+                                '3 أخطاء = تجميد جولة.\nالتكرار يضاعف الجولات.', 
                                 textAlign: TextAlign.center,
-                                style: TextStyle(fontFamily: 'Amiri', fontSize: 18, color: Color(0xFF2C1810), height: 1.5)
+                                style: TextStyle(fontFamily: 'Amiri', fontSize: isMobile ? 12 : 18, color: const Color(0xFF2C1810), height: 1.3)
                               ),
                               
-                              const SizedBox(height: 30),
-                              const Center(
+                              const SizedBox(height: 5),
+                              Center(
                                 child: Text(
-                                  'استعدوا للتحدي!', 
+                                  'استعدوا للمنافسة!', 
                                   textAlign: TextAlign.center,
-                                  style: TextStyle(fontFamily: 'Amiri', fontSize: 22, color: Colors.brown, fontWeight: FontWeight.bold)
+                                  style: TextStyle(fontFamily: 'Amiri', fontSize: isMobile ? 15 : 22, color: Colors.brown, fontWeight: FontWeight.bold)
                                 )
                               ),
                             ],

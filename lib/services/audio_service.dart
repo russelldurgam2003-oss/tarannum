@@ -26,4 +26,11 @@ class AudioService {
       print('Error pausing BGM: $e');
     }
   }
+    static Future<void> setBgmVolume(double volume) async {
+    try {
+      await _bgmPlayer.setVolume(volume);
+    } catch (e) {
+      print('Error setting BGM volume: $e');
+    }
+  }
 }

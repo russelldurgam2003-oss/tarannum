@@ -8,8 +8,8 @@ import '../widgets/parchment_dialog.dart';
 import '../services/audio_service.dart';
 
 class GameScreen extends StatefulWidget {
-  final String level; // <--- إضافة هذا السطر
-  const GameScreen({super.key, required this.level}); // <--- تعديل الـ constructor
+  final String level; 
+  const GameScreen({super.key, required this.level}); 
 
   @override
   State<GameScreen> createState() => _GameScreenState();
@@ -29,6 +29,7 @@ class _GameScreenState extends State<GameScreen> {
 
   bool _isLoading = true;
   bool _isAnswered = false;
+  bool _isPaused = false; // <--- متغير جديد لحالة التوقف
 
   int _wrongAttempts = 0;
   final Set<int> _wrongTappedIds = {};
@@ -150,6 +151,42 @@ class _GameScreenState extends State<GameScreen> {
       ..scale(newScale);
   }
 
+  // ===== دالة إظهار قائمة التوقف =====
+  void _showPauseMenu() {
+    setState(() => _isPaused = true);
+    _aiTimer?.cancel(); // إيقاف مؤقت الذكاء الاصطناعي
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => ParchmentDialog(
+        title: 'توقف مؤقت',
+        content: const Text('هل تريد الاستئناف أم مغادرة اللعبة؟', style: TextStyle(fontFamily: 'Amiri', fontSize: 20, color: Color(0xFF2C1810))),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); // إغلاق النافذة
+              setState(() => _isPaused = false); // إلغاء التوقف
+              // إذا لم تكن الجولة قد انتهت، أعد تشغيل مؤقت الذكاء الاصطناعي
+              if (!_isAnswered && !_isPlayerFrozen) {
+                _scheduleAiAnswer();
+              }
+            },
+            child: const Text('استئناف', style: TextStyle(fontFamily: 'Amiri', fontSize: 20, color: Colors.green, fontWeight: FontWeight.bold)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); // إغلاق النافذة
+              Navigator.pop(context); // الخروج من شاشة اللعب
+            },
+            child: const Text('مغادرة اللعبة', style: TextStyle(fontFamily: 'Amiri', fontSize: 20, color: Colors.red, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+  // ===================================
+
   void _nextRound() {
     if (_allRemainingCards.isEmpty) {
       _endGame();
@@ -182,7 +219,7 @@ class _GameScreenState extends State<GameScreen> {
       });
       _aiTimer?.cancel();
       _aiTimer = Timer(const Duration(seconds: 3), () {
-        if (mounted && !_isAnswered) _handleAiAnswer();
+        if (mounted && !_isAnswered && !_isPaused) _handleAiAnswer();
       });
     } else {
       _scheduleAiAnswer();
@@ -193,7 +230,7 @@ class _GameScreenState extends State<GameScreen> {
     _aiTimer?.cancel();
     final delay = Duration(seconds: 20 + Random().nextInt(11));
     _aiTimer = Timer(delay, () {
-      if (!mounted || _isAnswered) return;
+      if (!mounted || _isAnswered || _isPaused) return; // <--- حماية من العمل أثناء التوقف
       _handleAiAnswer();
     });
   }
@@ -216,7 +253,7 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _checkAnswer(Verse tappedVerse) {
-    if (_isAnswered || _isPlayerFrozen) return;
+    if (_isAnswered || _isPlayerFrozen || _isPaused) return; // <--- حماية من الإجابة أثناء التوقف
 
     final isCorrect = tappedVerse.id == _currentVerse!.id;
 
@@ -364,11 +401,11 @@ class _GameScreenState extends State<GameScreen> {
 
   void _scheduleNextRound() {
     Future.delayed(const Duration(milliseconds: 400), () {
-      if (mounted) _nextRound();
+      if (mounted && !_isPaused) _nextRound(); // <--- حماية من بدء جولة جديدة أثناء التوقف
     });
   }
 
-    void _endGame() {
+  void _endGame() {
     _aiTimer?.cancel();
     final playerCount = _playerWonCards.length;
     final aiCount = _aiWonCards.length;
@@ -450,7 +487,7 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-    Widget _buildTopBar() {
+  Widget _buildTopBar() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       color: const Color(0xFF1A0D08),
@@ -460,6 +497,7 @@ class _GameScreenState extends State<GameScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              // عداد الأخطاء (يسار)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
@@ -474,17 +512,32 @@ class _GameScreenState extends State<GameScreen> {
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _isPlayerFrozen ? Colors.red.withOpacity(0.3) : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _isPlayerFrozen ? Colors.redAccent : Colors.transparent, width: 1.5),
-                ),
-                child: Text(
-                  _isPlayerFrozen ? 'مجمّد 🚫' : '        ', // مسافات وهمية للحفاظ على التوازن
-                  style: const TextStyle(color: Colors.redAccent, fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'Amiri'),
-                ),
+              
+              // حالة التجميد + زر الإعدادات (يمين)
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _isPlayerFrozen ? Colors.red.withOpacity(0.3) : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: _isPlayerFrozen ? Colors.redAccent : Colors.transparent, width: 1.5),
+                    ),
+                    child: Text(
+                      _isPlayerFrozen ? 'مجمّد 🚫' : '        ', 
+                      style: const TextStyle(color: Colors.redAccent, fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'Amiri'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // زر الإعدادات
+                  GestureDetector(
+                    onTap: _showPauseMenu,
+                    child: InteractiveSettingsIcon(
+                    size: 30,
+                    onPressed: _showPauseMenu,
+                  ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -561,9 +614,9 @@ class _GameScreenState extends State<GameScreen> {
                   bottom: 2.0 + (4 - i) * 1.8,
                   child: Container(
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2E7D32), // Green back
+                      color: const Color(0xFF2E7D32), 
                       borderRadius: BorderRadius.circular(2),
-                      border: Border.all(color: const Color(0xFFD4AF37), width: 1.0), // Gold border
+                      border: Border.all(color: const Color(0xFFD4AF37), width: 1.0), 
                     ),
                   ),
                 ),
@@ -735,18 +788,18 @@ class _GameScreenState extends State<GameScreen> {
     final key = _cardKeys.putIfAbsent(verse.id, () => GlobalKey());
 
     return GestureDetector(
-      onTap: (_isAnswered || _isPlayerFrozen) ? null : () => _checkAnswer(verse),
+      onTap: (_isAnswered || _isPlayerFrozen || _isPaused) ? null : () => _checkAnswer(verse), // <--- حماية من الضغط أثناء التوقف
       child: Container(
         key: key,
         decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: borderColor, width: 4.0), // إطار أخضر أثخن
+          border: Border.all(color: borderColor, width: 4.0), 
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.4), // ظل أقوى وأوضح
-              blurRadius: 6,                      // تنعيم الظل
-              offset: const Offset(2, 4),         // إزاحة الظل للأسفل
+              color: Colors.black.withOpacity(0.4), 
+              blurRadius: 6,                      
+              offset: const Offset(2, 4),         
             ),
           ],
         ),
@@ -819,15 +872,11 @@ class _FlyingCardState extends State<_FlyingCard> with SingleTickerProviderState
         final width = widget.startSize.width + (widget.endSize.width - widget.startSize.width) * t;
         final height = widget.startSize.height + (widget.endSize.height - widget.startSize.height) * t;
 
-        // زاوية الدوران (من 0 إلى 180 درجة)
         final angle = t * pi; 
-        // هل نحن في النصف الأول (الوجه) أم الثاني (الظهر)؟
         final isFront = angle < (pi / 2);
 
-        // محتوى البطاقة (وجه أو ظهر)
         Widget cardContent = isFront
             ? Container(
-                // وجه البطاقة (أبيض بالنص)
                 decoration: BoxDecoration(
                   color: const Color(0xFFFDFBF5),
                   borderRadius: BorderRadius.circular(6),
@@ -858,15 +907,13 @@ class _FlyingCardState extends State<_FlyingCard> with SingleTickerProviderState
                 ),
               )
             : Transform(
-                // ظهر البطاقة (أخضر)
-                // نعكسها أفقياً حتى لا تظهر معكوسة أثناء الدوران
                 transform: Matrix4.identity()..rotateY(pi),
                 alignment: Alignment.center,
                 child: Container(
                   decoration: BoxDecoration(
-                    color: const Color(0xFF2E7D32), // لون أخضر
+                    color: const Color(0xFF2E7D32),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xFFD4AF37), width: 4.0), // إطار ذهبي
+                    border: Border.all(color: const Color(0xFFD4AF37), width: 4.0),
                     boxShadow: [
                       BoxShadow(color: Colors.black.withOpacity(0.6), blurRadius: 12, offset: const Offset(3, 6)),
                     ],
@@ -888,7 +935,6 @@ class _FlyingCardState extends State<_FlyingCard> with SingleTickerProviderState
           top: top,
           width: width,
           height: height,
-          // تطبيق منظور ثلاثي الأبعاد (Perspective) لتبدو الحركة واقعية
           child: Transform(
             transform: Matrix4.identity()..setEntry(3, 2, 0.001)..rotateY(angle),
             alignment: Alignment.center,
@@ -899,6 +945,55 @@ class _FlyingCardState extends State<_FlyingCard> with SingleTickerProviderState
           ),
         );
       },
+    );
+  }
+}
+class InteractiveSettingsIcon extends StatefulWidget {
+  final VoidCallback onPressed;
+  final double size;
+
+  const InteractiveSettingsIcon({super.key, required this.onPressed, this.size = 35});
+
+  @override
+  State<InteractiveSettingsIcon> createState() => _InteractiveSettingsIconState();
+}
+
+class _InteractiveSettingsIconState extends State<InteractiveSettingsIcon> {
+  bool _isHovered = false;
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    double scale = 1.0;
+    if (_isPressed) {
+      scale = 0.85; // يصغر عند الضغط
+    } else if (_isHovered) {
+      scale = 1.15; // يكبر عند التأشير
+    }
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _isPressed = true),
+        onTapUp: (_) {
+          setState(() => _isPressed = false);
+          widget.onPressed();
+        },
+        onTapCancel: () => setState(() => _isPressed = false),
+        child: AnimatedScale(
+          scale: scale,
+          duration: const Duration(milliseconds: 100),
+          curve: Curves.easeOut,
+          child: Image.asset(
+            'assets/images/settings_icon.png',
+            width: widget.size,
+            height: widget.size,
+            fit: BoxFit.contain,
+          ),
+        ),
+      ),
     );
   }
 }

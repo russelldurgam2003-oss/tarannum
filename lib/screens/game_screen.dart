@@ -2,10 +2,12 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // <--- إضافة
 import '../models/verse.dart';
 import '../services/verse_service.dart';
 import '../widgets/parchment_dialog.dart';
 import '../services/audio_service.dart';
+import '../services/auth_service.dart'; // <--- إضافة
 
 class GameScreen extends StatefulWidget {
   final String level; 
@@ -18,6 +20,7 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen> {
   final VerseService _verseService = VerseService();
   final AudioPlayer _sfxPlayer = AudioPlayer();
+  final AuthService _authService = AuthService(); // <--- إضافة
 
   List<Verse?> _playerCards = List<Verse?>.filled(25, null);
   List<Verse?> _aiCards = List<Verse?>.filled(25, null);
@@ -29,7 +32,7 @@ class _GameScreenState extends State<GameScreen> {
 
   bool _isLoading = true;
   bool _isAnswered = false;
-  bool _isPaused = false; // <--- متغير جديد لحالة التوقف
+  bool _isPaused = false; 
 
   int _wrongAttempts = 0;
   final Set<int> _wrongTappedIds = {};
@@ -45,8 +48,7 @@ class _GameScreenState extends State<GameScreen> {
   final GlobalKey _aiWonKey = GlobalKey();
   final Map<int, GlobalKey> _cardKeys = {};
 
-  final TransformationController _transformController =
-      TransformationController();
+  final TransformationController _transformController = TransformationController();
 
   bool _hasSetInitialZoom = false;
   Size _lastViewportSize = Size.zero;
@@ -56,14 +58,49 @@ class _GameScreenState extends State<GameScreen> {
   static const double _boardWidth = 1800;
   static const double _boardHeight = 1200;
 
+  // --- إضافات البروفايل ---
+  String _playerName = 'أنت';
+  String? _playerAvatar;
+  Map<String, String>? _currentAiProfile;
+    final List<Map<String, String>> _aiProfiles = [
+    {'name': 'المتنبي', 'avatar': 'assets/images/avatars/1.png'},
+    {'name': 'الجواهري', 'avatar': 'assets/images/avatars/2.png'},
+    {'name': 'أحمد شوقي', 'avatar': 'assets/images/avatars/3.png'},
+    {'name': 'امرؤ القيس', 'avatar': 'assets/images/avatars/4.png'},
+    {'name': 'أبو تمام', 'avatar': 'assets/images/avatars/5.png'},
+    {'name': 'أبو العلاء المعري', 'avatar': 'assets/images/avatars/6.png'},
+    {'name': 'نزار قباني', 'avatar': 'assets/images/avatars/7.png'},
+    {'name': 'محمود درويش', 'avatar': 'assets/images/avatars/8.png'},
+    {'name': 'زهير بن أبي سلمى', 'avatar': 'assets/images/avatars/9.png'},
+  ];
+  // ------------------------
+
   @override
   void initState() {
     super.initState();
     _transformController.addListener(_onTransformChanged);
     _sfxPlayer.setPlayerMode(PlayerMode.lowLatency);
-    _loadVerses();
+    _loadProfileAndVerses(); // <--- تعديل الدالة هنا
     AudioService.pauseBGM();
   }
+
+  // --- دالة تحميل البروفايل والأبيات ---
+  Future<void> _loadProfileAndVerses() async {
+    User? user = _authService.currentUser;
+    if (user != null) {
+      final profile = await _authService.getUserProfile(user.uid);
+      if (profile != null) {
+        setState(() {
+          _playerName = profile['displayName'] ?? 'أنت';
+          _playerAvatar = profile['avatarPath'];
+        });
+      }
+    }
+    final verses = await _verseService.loadVerses(widget.level); 
+    setState(() => _isLoading = false);
+    _startGame(verses);
+  }
+  // ------------------------------------
 
   void _onTransformChanged() {
     final newScale = _transformController.value.getMaxScaleOnAxis();
@@ -79,12 +116,6 @@ class _GameScreenState extends State<GameScreen> {
     } catch (e) {
       print('خطأ في تشغيل الصوت: $e');
     }
-  }
-
-  Future<void> _loadVerses() async {
-     final verses = await _verseService.loadVerses(widget.level); 
-    setState(() => _isLoading = false);
-    _startGame(verses);
   }
 
   void _startGame(List<Verse> verses) {
@@ -111,6 +142,9 @@ class _GameScreenState extends State<GameScreen> {
         _aiCards[i] = selected[i + 25];
       }
       _hasSetInitialZoom = false;
+      
+      // اختيار بروفايل عشوائي للذكاء الاصطناعي في البداية
+      _currentAiProfile = _aiProfiles[Random().nextInt(_aiProfiles.length)];
     });
 
     _nextRound();
@@ -151,10 +185,9 @@ class _GameScreenState extends State<GameScreen> {
       ..scale(newScale);
   }
 
-  // ===== دالة إظهار قائمة التوقف =====
   void _showPauseMenu() {
     setState(() => _isPaused = true);
-    _aiTimer?.cancel(); // إيقاف مؤقت الذكاء الاصطناعي
+    _aiTimer?.cancel(); 
 
     showDialog(
       context: context,
@@ -165,9 +198,8 @@ class _GameScreenState extends State<GameScreen> {
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.pop(context); // إغلاق النافذة
-              setState(() => _isPaused = false); // إلغاء التوقف
-              // إذا لم تكن الجولة قد انتهت، أعد تشغيل مؤقت الذكاء الاصطناعي
+              Navigator.pop(context); 
+              setState(() => _isPaused = false); 
               if (!_isAnswered && !_isPlayerFrozen) {
                 _scheduleAiAnswer();
               }
@@ -176,8 +208,8 @@ class _GameScreenState extends State<GameScreen> {
           ),
           TextButton(
             onPressed: () {
-              Navigator.pop(context); // إغلاق النافذة
-              Navigator.pop(context); // الخروج من شاشة اللعب
+              Navigator.pop(context); 
+              Navigator.pop(context); 
             },
             child: const Text('مغادرة اللعبة', style: TextStyle(fontFamily: 'Amiri', fontSize: 20, color: Colors.red, fontWeight: FontWeight.bold)),
           ),
@@ -185,7 +217,6 @@ class _GameScreenState extends State<GameScreen> {
       ),
     );
   }
-  // ===================================
 
   void _nextRound() {
     if (_allRemainingCards.isEmpty) {
@@ -230,7 +261,7 @@ class _GameScreenState extends State<GameScreen> {
     _aiTimer?.cancel();
     final delay = Duration(seconds: 20 + Random().nextInt(11));
     _aiTimer = Timer(delay, () {
-      if (!mounted || _isAnswered || _isPaused) return; // <--- حماية من العمل أثناء التوقف
+      if (!mounted || _isAnswered || _isPaused) return; 
       _handleAiAnswer();
     });
   }
@@ -253,7 +284,7 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _checkAnswer(Verse tappedVerse) {
-    if (_isAnswered || _isPlayerFrozen || _isPaused) return; // <--- حماية من الإجابة أثناء التوقف
+    if (_isAnswered || _isPlayerFrozen || _isPaused) return; 
 
     final isCorrect = tappedVerse.id == _currentVerse!.id;
 
@@ -263,6 +294,8 @@ class _GameScreenState extends State<GameScreen> {
       setState(() {
         _isAnswered = true;
         _correctRevealedVerseId = tappedVerse.id;
+        // --- التعديل هنا: تغيير بروفايل الذكاء الاصطناعي عند فوز اللاعب ---
+        _currentAiProfile = _aiProfiles[Random().nextInt(_aiProfiles.length)];
       });
 
       _showNotification('أحسنت! قال الشاعر: ${_currentVerse!.poet}', Colors.green);
@@ -401,7 +434,7 @@ class _GameScreenState extends State<GameScreen> {
 
   void _scheduleNextRound() {
     Future.delayed(const Duration(milliseconds: 400), () {
-      if (mounted && !_isPaused) _nextRound(); // <--- حماية من بدء جولة جديدة أثناء التوقف
+      if (mounted && !_isPaused) _nextRound(); 
     });
   }
 
@@ -409,6 +442,16 @@ class _GameScreenState extends State<GameScreen> {
     _aiTimer?.cancel();
     final playerCount = _playerWonCards.length;
     final aiCount = _aiWonCards.length;
+
+    // --- تسجيل الإحصائيات ---
+    if (_authService.currentUser != null) {
+      if (playerCount > aiCount) {
+        _authService.updateStats(_authService.currentUser!.uid, spWin: true);
+      } else if (playerCount < aiCount) {
+        _authService.updateStats(_authService.currentUser!.uid, spLoss: true);
+      }
+    }
+    // -----------------------
 
     showDialog(
       context: context,
@@ -434,7 +477,7 @@ class _GameScreenState extends State<GameScreen> {
           ),
           const SizedBox(width: 20),
           TextButton(
-            onPressed: () { Navigator.pop(context); _loadVerses(); },
+            onPressed: () { Navigator.pop(context); _loadProfileAndVerses(); }, // <--- تعديل اسم الدالة هنا
             child: const Text('العب مرة أخرى', style: TextStyle(fontFamily: 'Amiri', fontSize: 20, color: Colors.brown, fontWeight: FontWeight.bold)),
           ),
         ],
@@ -497,51 +540,33 @@ class _GameScreenState extends State<GameScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // عداد الأخطاء (يسار)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _wrongAttempts > 0 ? Colors.red.withOpacity(0.3) : Colors.white.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _wrongAttempts > 0 ? Colors.redAccent : Colors.white30, width: 1.5),
-                ),
-                child: Row(
-                  children: [
-                    const Text('الأخطاء: ', style: TextStyle(color: Colors.white70, fontSize: 12, fontFamily: 'Amiri')),
-                    Text('$_wrongAttempts / 3', style: TextStyle(color: _wrongAttempts > 0 ? Colors.redAccent : Colors.white70, fontSize: 14, fontWeight: FontWeight.bold)),
-                  ],
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _wrongAttempts > 0 ? Colors.red.withOpacity(0.3) : Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: _wrongAttempts > 0 ? Colors.redAccent : Colors.white30, width: 1.5),
+                  ),
+                  child: Row(
+                    children: [
+                      const Text('الأخطاء: ', style: TextStyle(color: Colors.white70, fontSize: 12, fontFamily: 'Amiri')),
+                      Text('$_wrongAttempts / 3', style: TextStyle(color: _wrongAttempts > 0 ? Colors.redAccent : Colors.white70, fontSize: 14, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
                 ),
               ),
-              
-              // حالة التجميد + زر الإعدادات (يمين)
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _isPlayerFrozen ? Colors.red.withOpacity(0.3) : Colors.transparent,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: _isPlayerFrozen ? Colors.redAccent : Colors.transparent, width: 1.5),
-                    ),
-                    child: Text(
-                      _isPlayerFrozen ? 'مجمّد 🚫' : '        ', 
-                      style: const TextStyle(color: Colors.redAccent, fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'Amiri'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  // زر الإعدادات
-                  GestureDetector(
-                    onTap: _showPauseMenu,
-                    child: InteractiveSettingsIcon(
-                    size: 30,
-                    onPressed: _showPauseMenu,
-                  ),
-                  ),
-                ],
+              GestureDetector(
+                onTap: _showPauseMenu,
+                child: Image.asset('assets/images/settings_icon.png', width: 30, height: 30),
               ),
             ],
           ),
-          const Text('ترنم', style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold, fontFamily: 'Amiri')),
+          const FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text('ترنم', style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold, fontFamily: 'Amiri')),
+          ),
         ],
       ),
     );
@@ -559,20 +584,27 @@ class _GameScreenState extends State<GameScreen> {
           BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 4, offset: const Offset(0, 2))
         ]
       ),
-      child: Text(
-        _currentVerse?.sadr ?? '',
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 26,
-          fontWeight: FontWeight.bold,
-          height: 1.3,
-          fontFamily: 'Amiri',
+      child: SizedBox(
+        width: double.infinity,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            _currentVerse?.sadr ?? '',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+              height: 1.3,
+              fontFamily: 'Amiri',
+            ),
+          ),
         ),
       ),
     );
   }
 
+  // --- تعديل دالة مكتسبات اللاعبين لتشمل الصور والأسماء ---
   Widget _buildWonPilesBar() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -580,52 +612,48 @@ class _GameScreenState extends State<GameScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          _buildWonPile(_playerWonKey, _playerWonCards, 'مكتسباتك', Colors.lightBlueAccent),
-          _buildWonPile(_aiWonKey, _aiWonCards, 'مكتسبات الخصم', Colors.orangeAccent),
+          _buildWonPile(_playerWonKey, _playerWonCards, _playerName, Colors.lightBlueAccent, _playerAvatar),
+          _buildWonPile(_aiWonKey, _aiWonCards, _currentAiProfile?['name'] ?? 'الخصم', Colors.orangeAccent, _currentAiProfile?['avatar']),
         ],
       ),
     );
   }
 
-  Widget _buildWonPile(GlobalKey key, List<Verse> cards, String label, Color color) {
+  Widget _buildWonPile(GlobalKey key, List<Verse> cards, String label, Color color, String? avatarPath) {
     return Row(
       children: [
-        Text(
-          '$label: ${cards.length}',
-          style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'Amiri'),
-        ),
+        if (avatarPath != null && avatarPath.isNotEmpty)
+          CircleAvatar(radius: 18, backgroundImage: AssetImage(avatarPath), backgroundColor: Colors.transparent)
+        else
+          CircleAvatar(radius: 18, backgroundColor: color.withOpacity(0.3), child: Icon(Icons.person, color: color, size: 20)),
         const SizedBox(width: 8),
-        Container(
-          key: key,
-          width: 40,
-          height: 50,
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: color.withOpacity(0.7), width: 2),
-          ),
-          child: Stack(
-            children: [
-              for (int i = 0; i < cards.length && i < 4; i++)
-                Positioned(
-                  left: 2.0 + i * 1.0,
-                  top: 2.0 + i * 1.0,
-                  right: 2.0,
-                  bottom: 2.0 + (4 - i) * 1.8,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2E7D32), 
-                      borderRadius: BorderRadius.circular(2),
-                      border: Border.all(color: const Color(0xFFD4AF37), width: 1.0), 
-                    ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            FittedBox(fit: BoxFit.scaleDown, child: Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold, fontFamily: 'Amiri'))),
+            Row(
+              children: [
+                Text('${cards.length}', style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(width: 4),
+                Container(
+                  key: key, width: 20, height: 28,
+                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(4), border: Border.all(color: color.withOpacity(0.7), width: 1.5)),
+                  child: Stack(
+                    children: [
+                      for (int i = 0; i < cards.length && i < 3; i++)
+                        Positioned(left: 1.0 + i * 1.0, top: 1.0 + i * 1.0, right: 1.0, bottom: 1.0 + (3 - i) * 1.5, child: Container(decoration: BoxDecoration(color: const Color(0xFF2E7D32), borderRadius: BorderRadius.circular(2), border: Border.all(color: const Color(0xFFD4AF37), width: 0.5)))),
+                    ],
                   ),
                 ),
-            ],
-          ),
+              ],
+            ),
+          ],
         ),
       ],
     );
   }
+  // --------------------------------------------------------
 
   Widget _buildWoodenFloor() {
     final isPanEnabled = _currentScale > _fitScale * 1.05;
@@ -770,7 +798,7 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  Widget _buildKarutaCard(Verse verse) {
+ Widget _buildKarutaCard(Verse verse) {
     final isCorrectRevealed = _correctRevealedVerseId == verse.id;
     final isWrongTapped = _wrongTappedIds.contains(verse.id);
 
@@ -787,38 +815,49 @@ class _GameScreenState extends State<GameScreen> {
 
     final key = _cardKeys.putIfAbsent(verse.id, () => GlobalKey());
 
-    return GestureDetector(
-      onTap: (_isAnswered || _isPlayerFrozen || _isPaused) ? null : () => _checkAnswer(verse), // <--- حماية من الضغط أثناء التوقف
-      child: Container(
-        key: key,
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: borderColor, width: 4.0), 
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.4), 
-              blurRadius: 6,                      
-              offset: const Offset(2, 4),         
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return GestureDetector(
+          onTap: (_isAnswered || _isPlayerFrozen || _isPaused) ? null : () => _checkAnswer(verse),
+          child: Container(
+            key: key,
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: borderColor, width: 4.0),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.4),
+                  blurRadius: 6,
+                  offset: const Offset(2, 4),
+                ),
+              ],
             ),
-          ],
-        ),
-        padding: const EdgeInsets.all(4),
-        child: Center(
-          child: Text(
-            verse.ajz,
-            textAlign: TextAlign.center,
-            softWrap: true,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              height: 1.3,
-              color: Color(0xFF1A1A1A),
-              fontFamily: 'Amiri',
+            padding: const EdgeInsets.all(4),
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: SizedBox(
+                  // إجبار النص على النزول لسطر جديد إذا كان طويلاً
+                  width: constraints.maxWidth * 0.9,
+                  child: Text(
+                    verse.ajz,
+                    textAlign: TextAlign.center,
+                    softWrap: true,
+                    style: const TextStyle(
+                      fontSize: 48, 
+                      fontWeight: FontWeight.w900, 
+                      height: 1.2, 
+                      color: Color(0xFF1A1A1A),
+                      fontFamily: 'Amiri',
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      }
     );
   }
 }
@@ -889,14 +928,15 @@ class _FlyingCardState extends State<_FlyingCard> with SingleTickerProviderState
                 child: Center(
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
-                    child: Padding(
-                      padding: const EdgeInsets.all(2),
+                    child: FractionallySizedBox(
+                      widthFactor: 0.9, // إجبار النص على النزول لسطر جديد
                       child: Text(
                         widget.verse.ajz,
                         textAlign: TextAlign.center,
+                        softWrap: true,
                         style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 40,
+                          fontWeight: FontWeight.w900,
                           height: 1.2,
                           color: Color(0xFF1A1A1A),
                           fontFamily: 'Amiri',
@@ -948,6 +988,7 @@ class _FlyingCardState extends State<_FlyingCard> with SingleTickerProviderState
     );
   }
 }
+
 class InteractiveSettingsIcon extends StatefulWidget {
   final VoidCallback onPressed;
   final double size;

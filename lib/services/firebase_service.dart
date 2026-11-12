@@ -12,25 +12,29 @@ class FirebaseService {
         4, (_) => letters.codeUnitAt(random.nextInt(letters.length))));
   }
 
-  Future<String> createRoom() async {
+  Future<String> createRoom(String p1Name, String? p1Avatar) async {
     String roomCode = _generateRoomCode();
     await _db.collection('rooms').doc(roomCode).set({
       'roomCode': roomCode, 'player1Joined': true, 'player2Joined': false, 'status': 'waiting',
       'p1Score': 0, 'p2Score': 0, 'p1Won': [], 'p2Won': [],
       'p1Wrong': 0, 'p2Wrong': 0, 'p1Freeze': 0, 'p2Freeze': 0,
       'p1FrozenThisRound': false, 'p2FrozenThisRound': false,
+      'p1Name': p1Name, 'p1Avatar': p1Avatar,
       'lastEventId': 0, 'lastEvent': '',
     });
     return roomCode;
   }
 
-  Future<bool> joinRoom(String roomCode) async {
+  Future<bool> joinRoom(String roomCode, String p2Name, String? p2Avatar) async {
     final docRef = _db.collection('rooms').doc(roomCode.toUpperCase());
     final doc = await docRef.get();
     if (doc.exists) {
       final data = doc.data()!;
       if (data['player2Joined'] == false) {
-        await docRef.update({'player2Joined': true, 'status': 'playing'});
+        await docRef.update({
+          'player2Joined': true, 'status': 'playing',
+          'p2Name': p2Name, 'p2Avatar': p2Avatar,
+        });
         return true;
       }
     }

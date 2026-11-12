@@ -4,6 +4,7 @@ import '../services/firebase_service.dart';
 import '../services/verse_service.dart'; // <--- مهم لتحميل الأبيات
 import '../widgets/parchment_dialog.dart';
 import 'multiplayer_game_screen.dart'; // <--- مهم للانتقال لشاشة اللعب
+import '../services/auth_service.dart';
 
 class LobbyScreen extends StatefulWidget {
   const LobbyScreen({super.key});
@@ -18,48 +19,46 @@ class _LobbyScreenState extends State<LobbyScreen> {
   final TextEditingController _codeController = TextEditingController();
   bool _isLoading = false;
 
+   // متغيرات جديدة في الكلاس
+  final AuthService _authService = AuthService();
+  String _myName = 'لاعب';
+  String? _myAvatar;
+
+  // دالة لجلب البروفايل قبل بدء اللعب
+  Future<void> _fetchProfile() async {
+    if (_authService.currentUser != null) {
+      final profile = await _authService.getUserProfile(_authService.currentUser!.uid);
+      if (profile != null) {
+        _myName = profile['displayName'] ?? 'لاعب';
+        _myAvatar = profile['avatarPath'];
+      }
+    }
+  }
+
   void _createRoom() async {
     setState(() => _isLoading = true);
-    String roomCode = await _firebaseService.createRoom();
+    await _fetchProfile(); // جلب البيانات
+    String roomCode = await _firebaseService.createRoom(_myName, _myAvatar); // تمريرها
     setState(() => _isLoading = false);
-
-    if (mounted) {
-      _showWaitingDialog(roomCode);
-    }
+    if (mounted) _showWaitingDialog(roomCode);
   }
 
   void _joinRoom() async {
     if (_codeController.text.isEmpty) return;
     setState(() => _isLoading = true);
-    
+    await _fetchProfile(); // جلب البيانات
     String code = _codeController.text.toUpperCase();
-    bool success = await _firebaseService.joinRoom(code);
+    bool success = await _firebaseService.joinRoom(code, _myName, _myAvatar); // تمريرها
     
     if (mounted) {
       if (success) {
-        // تحميل الأبيات (سنستخدم مستوى المحترفين لأنه يحتوي على 300 بيت للتنوع)
         final verses = await _verseService.loadVerses('expert');
-        
         if (mounted) {
-          // الانتقال لشاشة اللعب بصفتك اللاعب الثاني (p2)
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => MultiplayerGameScreen(
-                roomCode: code,
-                playerId: 'p2',
-                verses: verses,
-              ),
-            ),
-          );
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => MultiplayerGameScreen(roomCode: code, playerId: 'p2', verses: verses)));
         }
       } else {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('عذراً، الكود غير صحيح أو الغرفة ممتلئة!', style: TextStyle(fontFamily: 'Amiri')),
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('عذراً، الكود غير صحيح أو الغرفة ممتلئة!', style: TextStyle(fontFamily: 'Amiri'))));
       }
     }
   }

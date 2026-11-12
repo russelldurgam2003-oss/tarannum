@@ -13,6 +13,8 @@ dependencies:
   audioplayers: ^6.0.0
   firebase_core: ^5.1.0
   cloud_firestore: ^7.1.0
+  firebase_auth: ^7.0.1
+  google_sign_in: ^7.2.0
 
 dev_dependencies:
   flutter_test:
@@ -35,6 +37,7 @@ flutter:
     - assets/images/mat_green.png
     - assets/images/mat_red.png
     - assets/images/settings_icon.png
+    - assets/images/avatars/
     - assets/audio/bgm.mp3
     - assets/audio/correct.mp3
     - assets/audio/wrong.mp3

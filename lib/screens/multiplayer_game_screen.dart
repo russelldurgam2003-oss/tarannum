@@ -7,6 +7,7 @@ import '../services/firebase_service.dart';
 import '../services/audio_service.dart';
 import '../models/verse.dart';
 import '../widgets/parchment_dialog.dart';
+import '../services/auth_service.dart'; 
 
 class MultiplayerGameScreen extends StatefulWidget {
   final String roomCode;
@@ -22,6 +23,7 @@ class MultiplayerGameScreen extends StatefulWidget {
 class _MultiplayerGameScreenState extends State<MultiplayerGameScreen> {
   final FirebaseService _firebaseService = FirebaseService();
   final AudioPlayer _sfxPlayer = AudioPlayer();
+  final AuthService _authService = AuthService();
   final TransformationController _transformController = TransformationController();
 
   List<Verse?> _playerCards = List<Verse?>.filled(25, null);
@@ -218,7 +220,34 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen> {
             _prevP1Won = p1WonList; _prevP2Won = p2WonList;
           }
 
-          if (status == 'finished') return _buildEndScreen(data);
+            if (status == 'finished') {
+              // تسجيل الإحصائيات مرة واحدة
+               if (!_isFirstLoad && _authService.currentUser != null) {
+                  final p1Score = data['p1Score'] ?? 0;
+                  final p2Score = data['p2Score'] ?? 0;
+                  final myScore = widget.playerId == 'p1' ? p1Score : p2Score;
+                  final oppScore = widget.playerId == 'p1' ? p2Score : p1Score;
+                  final endReason = data['endReason'];
+                  final winnerId = data['winnerId'];
+                  
+                  // تحديد اسم الخصم
+                  String oppName = widget.playerId == 'p1' ? (data['p2Name'] ?? 'الخصم') : (data['p1Name'] ?? 'الخصم');
+                  
+                  bool didIWin = false;
+                  if (endReason == 'leave') {
+                    didIWin = winnerId == widget.playerId;
+                  } else {
+                    didIWin = myScore > oppScore;
+                  }
+
+                  if (didIWin) {
+                    _authService.updateStats(_authService.currentUser!.uid, mpWin: true, opponentName: oppName);
+                  } else if (!didIWin && myScore < oppScore) { // استثناء التعادل
+                    _authService.updateStats(_authService.currentUser!.uid, mpLoss: true, opponentName: oppName);
+                  }
+                }
+                return _buildEndScreen(data);
+              }
 
           final currentVerseMap = data['currentVerse'];
           if (currentVerseMap == null) return const Center(child: CircularProgressIndicator());
@@ -293,7 +322,7 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen> {
               children: [
                 _buildTopBar(),
                 _buildSadrBar(),
-                _buildWonPilesBar(),
+               _buildWonPilesBar(data),
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
@@ -325,51 +354,37 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // عداد الأخطاء (أقصى اليسار)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _wrongAttempts > 0 ? Colors.red.withOpacity(0.3) : Colors.white.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _wrongAttempts > 0 ? Colors.redAccent : Colors.white30, width: 1.5),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('الأخطاء: ', style: TextStyle(color: Colors.white70, fontSize: 12, fontFamily: 'Amiri')),
-                    Text('$_wrongAttempts / 3', style: TextStyle(color: _wrongAttempts > 0 ? Colors.redAccent : Colors.white70, fontSize: 14, fontWeight: FontWeight.bold)),
-                  ],
+              // عداد الأخطاء (مرن)
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _wrongAttempts > 0 ? Colors.red.withOpacity(0.3) : Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: _wrongAttempts > 0 ? Colors.redAccent : Colors.white30, width: 1.5),
+                  ),
+                  child: Row(
+                    children: [
+                      const Text('الأخطاء: ', style: TextStyle(color: Colors.white70, fontSize: 12, fontFamily: 'Amiri')),
+                      Text('$_wrongAttempts / 3', style: TextStyle(color: _wrongAttempts > 0 ? Colors.redAccent : Colors.white70, fontSize: 14, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
                 ),
               ),
               
-              // حالة التجميد + زر الإعدادات (أقصى اليمين)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (_isPlayerFrozen)
-                    Container(
-                      margin: const EdgeInsets.only(right: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.redAccent, width: 1.5),
-                      ),
-                      child: const Text('مجمّد 🚫', style: TextStyle(color: Colors.redAccent, fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'Amiri')),
-                    ),
-                  GestureDetector(
-                    onTap: _showPauseMenu,
-                    child: InteractiveSettingsIcon(
-                    size: 30,
-                    onPressed: _showPauseMenu,
-                  ),
-                  ),
-                ],
+              // زر الإعدادات (مرن)
+              GestureDetector(
+                onTap: _showPauseMenu,
+                child: Image.asset('assets/images/settings_icon.png', width: 30, height: 30),
               ),
             ],
           ),
-          // اسم اللعبة (في المنتصف)
-          const Text('ترنم', style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold, fontFamily: 'Amiri')),
+          // اسم اللعبة (مرن)
+          const FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text('ترنم', style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold, fontFamily: 'Amiri')),
+          ),
         ],
       ),
     );
@@ -380,44 +395,88 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF2C1810), borderRadius: BorderRadius.circular(6),
+        color: const Color(0xFF2C1810),
+        borderRadius: BorderRadius.circular(6),
         border: Border.all(color: const Color(0xFFD4AF37), width: 2),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 4, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 4, offset: const Offset(0, 2))
+        ]
       ),
-      child: Text(_currentVerse?.sadr ?? '', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold, height: 1.3, fontFamily: 'Amiri')),
+      // استخدام FittedBox هنا يضمن عدم خروج النص أبداً
+      child: SizedBox(
+        width: double.infinity,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            _currentVerse?.sadr ?? '',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+              height: 1.3,
+              fontFamily: 'Amiri',
+            ),
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _buildWonPilesBar() {
+  Widget _buildWonPilesBar(Map<String, dynamic> data) { // تمرير data للدالة
     final myWon = widget.playerId == 'p1' ? _prevP1Won : _prevP2Won;
     final oppWon = widget.playerId == 'p1' ? _prevP2Won : _prevP1Won;
+    
+    // جلب البيانات
+    String myName = widget.playerId == 'p1' ? (data['p1Name'] ?? 'أنت') : (data['p2Name'] ?? 'أنت');
+    String? myAvatar = widget.playerId == 'p1' ? data['p1Avatar'] : data['p2Avatar'];
+    
+    String oppName = widget.playerId == 'p1' ? (data['p2Name'] ?? 'الخصم') : (data['p1Name'] ?? 'الخصم');
+    String? oppAvatar = widget.playerId == 'p1' ? data['p2Avatar'] : data['p1Avatar'];
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       color: const Color(0xFF1A0D08),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          _buildWonPile(_playerWonKey, myWon, 'مكتسباتك', Colors.lightBlueAccent),
-          _buildWonPile(_aiWonKey, oppWon, 'مكتسبات الخصم', Colors.orangeAccent),
+          _buildWonPile(_playerWonKey, myWon, myName, Colors.lightBlueAccent, myAvatar),
+          _buildWonPile(_aiWonKey, oppWon, oppName, Colors.orangeAccent, oppAvatar),
         ],
       ),
     );
   }
 
-  Widget _buildWonPile(GlobalKey key, List<Verse> cards, String label, Color color) {
+  Widget _buildWonPile(GlobalKey key, List<Verse> cards, String label, Color color, String? avatarPath) {
     return Row(
       children: [
-        Text('$label: ${cards.length}', style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'Amiri')),
+        if (avatarPath != null && avatarPath.isNotEmpty)
+          CircleAvatar(radius: 18, backgroundImage: AssetImage(avatarPath), backgroundColor: Colors.transparent)
+        else
+          CircleAvatar(radius: 18, backgroundColor: color.withOpacity(0.3), child: Icon(Icons.person, color: color, size: 20)),
         const SizedBox(width: 8),
-        Container(
-          key: key, width: 40, height: 50,
-          decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(4), border: Border.all(color: color.withOpacity(0.7), width: 2)),
-          child: Stack(
-            children: [
-              for (int i = 0; i < cards.length && i < 4; i++)
-                Positioned(left: 2.0 + i * 1.0, top: 2.0 + i * 1.0, right: 2.0, bottom: 2.0 + (4 - i) * 1.8, child: Container(decoration: BoxDecoration(color: const Color(0xFF2E7D32), borderRadius: BorderRadius.circular(2), border: Border.all(color: const Color(0xFFD4AF37), width: 1.0)))),
-            ],
-          ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            FittedBox(fit: BoxFit.scaleDown, child: Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold, fontFamily: 'Amiri'))),
+            Row(
+              children: [
+                Text('${cards.length}', style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(width: 4),
+                Container(
+                  key: key, width: 20, height: 28,
+                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(4), border: Border.all(color: color.withOpacity(0.7), width: 1.5)),
+                  child: Stack(
+                    children: [
+                      for (int i = 0; i < cards.length && i < 3; i++)
+                        Positioned(left: 1.0 + i * 1.0, top: 1.0 + i * 1.0, right: 1.0, bottom: 1.0 + (3 - i) * 1.5, child: Container(decoration: BoxDecoration(color: const Color(0xFF2E7D32), borderRadius: BorderRadius.circular(2), border: Border.all(color: const Color(0xFFD4AF37), width: 0.5)))),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ],
     );
@@ -484,20 +543,63 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen> {
   Widget _buildKarutaCard(Verse verse) {
     final isCorrectRevealed = _correctRevealedVerseId == verse.id;
     final isWrongTapped = _wrongTappedIds.contains(verse.id);
-    Color bgColor = const Color(0xFFFDFBF5); Color borderColor = const Color(0xFF2E7D32);
-    if (isCorrectRevealed) { bgColor = const Color(0xFFC8E6C9); borderColor = Colors.green; } else if (isWrongTapped) { bgColor = const Color(0xFFFFCDD2); borderColor = Colors.red; }
+
+    Color bgColor = const Color(0xFFFDFBF5);
+    Color borderColor = const Color(0xFF2E7D32);
+
+    if (isCorrectRevealed) {
+      bgColor = const Color(0xFFC8E6C9);
+      borderColor = Colors.green;
+    } else if (isWrongTapped) {
+      bgColor = const Color(0xFFFFCDD2);
+      borderColor = Colors.red;
+    }
+
     final key = _cardKeys.putIfAbsent(verse.id, () => GlobalKey());
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final box = key.currentContext?.findRenderObject() as RenderBox?;
-      if (box != null && box.hasSize) { _cardPositions[verse.id] = box.localToGlobal(Offset.zero); _cardSizes[verse.id] = box.size; }
-    });
-    return GestureDetector(
-      onTap: (_isLocked || _isPlayerFrozen) ? null : () => _checkAnswer(verse),
-      child: Container(
-        key: key, decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(6), border: Border.all(color: borderColor, width: 4.0), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 6, offset: const Offset(2, 4))]),
-        padding: const EdgeInsets.all(4),
-        child: Center(child: Text(verse.ajz, textAlign: TextAlign.center, softWrap: true, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, height: 1.3, color: Color(0xFF1A1A1A), fontFamily: 'Amiri'))),
-      ),
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return GestureDetector(
+          onTap: (_isLocked || _isPlayerFrozen) ? null : () => _checkAnswer(verse),
+          child: Container(
+            key: key,
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: borderColor, width: 4.0),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.4),
+                  blurRadius: 6,
+                  offset: const Offset(2, 4),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.all(4),
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: SizedBox(
+                  // إجبار النص على النزول لسطر جديد
+                  width: constraints.maxWidth * 0.9,
+                  child: Text(
+                    verse.ajz,
+                    textAlign: TextAlign.center,
+                    softWrap: true,
+                    style: const TextStyle(
+                      fontSize: 48, 
+                      fontWeight: FontWeight.w900, 
+                      height: 1.2, 
+                      color: Color(0xFF1A1A1A),
+                      fontFamily: 'Amiri',
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      }
     );
   }
 
@@ -558,7 +660,37 @@ class _FlyingCardState extends State<_FlyingCard> with SingleTickerProviderState
       final width = widget.startSize.width + (widget.endSize.width - widget.startSize.width) * t; final height = widget.startSize.height + (widget.endSize.height - widget.startSize.height) * t;
       final angle = t * pi; final isFront = angle < (pi / 2);
       Widget cardContent = isFront
-          ? Container(decoration: BoxDecoration(color: const Color(0xFFFDFBF5), borderRadius: BorderRadius.circular(6), border: Border.all(color: const Color(0xFF2E7D32), width: 4.0), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.6), blurRadius: 12, offset: const Offset(3, 6))]), padding: const EdgeInsets.all(4), child: Center(child: FittedBox(fit: BoxFit.scaleDown, child: Text(widget.verse.ajz, textAlign: TextAlign.center, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, height: 1.2, color: Color(0xFF1A1A1A), fontFamily: 'Amiri')))))
+          ? Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFDFBF5),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xFF2E7D32), width: 4.0),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.6), blurRadius: 12, offset: const Offset(3, 6)),
+                  ],
+                ),
+                padding: const EdgeInsets.all(4),
+                child: Center(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: FractionallySizedBox(
+                      widthFactor: 0.9, // إجبار النص على النزول لسطر جديد
+                      child: Text(
+                        widget.verse.ajz,
+                        textAlign: TextAlign.center,
+                        softWrap: true,
+                        style: const TextStyle(
+                          fontSize: 40,
+                          fontWeight: FontWeight.w900,
+                          height: 1.2,
+                          color: Color(0xFF1A1A1A),
+                          fontFamily: 'Amiri',
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              )
           : Transform(transform: Matrix4.identity()..rotateY(pi), alignment: Alignment.center, child: Container(decoration: BoxDecoration(color: const Color(0xFF2E7D32), borderRadius: BorderRadius.circular(6), border: Border.all(color: const Color(0xFFD4AF37), width: 4.0), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.6), blurRadius: 12, offset: const Offset(3, 6))]), child: Center(child: Container(margin: const EdgeInsets.all(6), decoration: BoxDecoration(border: Border.all(color: Colors.white24, width: 1.5), borderRadius: BorderRadius.circular(2))))));
       return Positioned(left: left, top: top, width: width, height: height, child: Transform(transform: Matrix4.identity()..setEntry(3, 2, 0.001)..rotateY(angle), alignment: Alignment.center, child: Material(color: Colors.transparent, child: cardContent)));
     });
